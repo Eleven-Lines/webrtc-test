@@ -46,7 +46,7 @@ export default class HelloWorld extends Vue {
 
   public log(s: string, color = '') {
     const logArea = document.querySelector('.log')
-    if (!logArea) return
+    if (!logArea) { return }
     const newChild = document.createElement('p')
     newChild.innerText = s
     newChild.style.color = color
@@ -91,13 +91,9 @@ export default class HelloWorld extends Vue {
 
   public async mounted() {
     try {
-      this.localStream = await navigator.mediaDevices.getDisplayMedia({ video: true })
+      this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
     } catch (error) {
-      try {
-        this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-      } catch (error) {
-        return
-      }
+      return
     }
 
     this.peer = new Peer({
@@ -151,7 +147,7 @@ export default class HelloWorld extends Vue {
     this.log('=== You joined ===')
     try {
         await this.dummyRoomJoin()
-    } catch (err){
+    } catch (err) {
         this.error(err)
     }
   }
