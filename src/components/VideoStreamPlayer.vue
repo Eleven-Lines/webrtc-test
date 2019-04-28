@@ -1,5 +1,5 @@
 <template lang="pug">
-video.video-stream-player(autoplay playsinline :class="{ small }")
+video.video-stream-player(playsinline autoplay :class="{ small }")
 </template>
 
 <script lang="ts">
@@ -15,6 +15,9 @@ export default class VideoStreamPlayer extends Vue {
   @Prop({ type: Boolean, default: false })
   private small!: boolean
 
+  @Prop({ type: Boolean, default: false })
+  private muted!: boolean
+
   public updateSrcObject() {
     (this.$el as HTMLVideoElement).srcObject = this.stream
   }
@@ -25,6 +28,9 @@ export default class VideoStreamPlayer extends Vue {
   }
 
   public mounted() {
+    if (this.muted) {
+      (this.$el as HTMLVideoElement).muted = true
+    }
     this.updateSrcObject()
   }
 }

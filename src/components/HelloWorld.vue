@@ -1,20 +1,26 @@
 <template lang="pug">
 .hello
   .video-container
-    video-stream-player(v-if="remoteStream" :stream="remoteStream")
-    video-stream-player(v-if="localStream" :stream="localStream" small)
+    div(v-for="stream in remoteStreams" :key="stream.peerId")
+      p ID: {{ stream.peerId }}
+      video-stream-player(:stream="stream" :data-peer-id="stream.peerId" muted)
+    video-stream-player(v-if="localStream" :stream="localStream" small muted)
   .controls
-    input(v-model="toCallId")
-    button.call-button(v-if="isTalking" @click="endCall") Stop
-    button.call-button(v-else @click="makeCall") Call
+    input(v-model="roomName" :disabled="isTalking")
+    button.call-button(v-if="isTalking" @click="leaveRoom") Leave
+    button.call-button(v-else @click="joinRoom") Join
+  .chat
+    input(v-model="chatText")
+    button.call-button(@click="sendChat") Send
   .infomation
     p ID : {{ id }}
+    .log
 </template>
 
 <script lang="ts">
 import { Component, Prop, Vue } from 'vue-property-decorator'
 import Peer from 'skyway-js'
-import { MediaConnection } from 'skyway-js'
+import { SFURoom, MeshRoom } from 'skyway-js'
 import VideoStreamPlayer from '@/components/VideoStreamPlayer.vue'
 
 @Component({
@@ -24,87 +30,149 @@ import VideoStreamPlayer from '@/components/VideoStreamPlayer.vue'
 })
 export default class HelloWorld extends Vue {
   private id = ''
-  private toCallId = ''
+  private roomName = ''
+  private chatText = ''
   private isTalking = false
 
   private peer?: Peer
-  private call?: MediaConnection
+  private room?: SFURoom
+
+  private subpeer?: Peer
+  private subroom?: SFURoom
 
   private localStream: MediaStream | null = null
-  private remoteStream: MediaStream | null = null
 
-  public makeCall() {
-    if (!this.peer || !this.localStream) {
-      return
-    }
-    const call = this.peer.call(this.toCallId, this.localStream)
-    if (!call) {
-      return
-    }
-    this.setupCallEventHandlers(call)
+  private remoteStreams: MediaStreamWithPeerId[] = []
+
+  public log(s: string, color = '') {
+    const logArea = document.querySelector('.log')
+    if (!logArea) return
+    const newChild = document.createElement('p')
+    newChild.innerText = s
+    newChild.style.color = color
+    logArea.appendChild(newChild)
   }
 
-  public endCall() {
-    if (!this.call) {
+  public error(s: string) {
+    this.log(s, 'red')
+  }
+
+  public joinRoom() {
+    if (!this.peer || !this.peer.open || !this.localStream) {
       return
     }
-    this.call.close()
+    const room = this.peer.joinRoom(this.roomName, {
+      mode: 'sfu',
+      stream: this.localStream,
+    }) as SFURoom
+    if (!room) {
+      return
+    }
+    this.setupRoomEventHandlers(room)
+    this.room = room
+    this.isTalking = true
+  }
+
+  public leaveRoom() {
+    if (!this.room) {
+      return
+    }
+    this.room.close()
+    this.isTalking = false
+  }
+
+  public sendChat() {
+    if (!this.room) {
+      return
+    }
+    this.room.send(this.chatText)
+    this.log(`You: ${this.chatText}`)
   }
 
   public async mounted() {
     try {
-      try {
-        this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true})
-      } catch {
-        this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      }
+      this.localStream = await navigator.mediaDevices.getDisplayMedia({ video: true })
     } catch (error) {
-//       console.log('getUserMedia Error:', error)
-      return
+      try {
+        this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      } catch (error) {
+        return
+      }
     }
 
     this.peer = new Peer({
       key: process.env.VUE_APP_SKYWAY_API_KEY,
-      debug: 3,
+      debug: 0,
     })
 
     if (this.peer) {
-      this.peer.on('open', () => this.id = this.peer ? this.peer.id : '')
-      this.peer.on('error', (err: any) => alert(err.message))
-      this.peer.on('close', () => { return })
-      this.peer.on('disconnected', () => { return })
-      this.peer.on('call', this.handlePeerCall)
+      this.setupPeerEventHandlers(this.peer)
     }
   }
 
-  private setupCallEventHandlers(call: MediaConnection) {
-    if (this.call) {
-      this.call.close()
+  private dummyRoomJoin() {
+    return new Promise((resolve, reject) => {
+      const dummyPeer = new Peer({ key: process.env.VUE_APP_SKYWAY_API_KEY })
+      dummyPeer.on('open', () => {
+        const dummyRoom = dummyPeer.joinRoom(this.roomName, { mode: 'sfu' })
+        dummyRoom.on('open', () => dummyRoom.close())
+        dummyRoom.on('close', () => {
+          dummyPeer.destroy()
+          resolve()
+        })
+        dummyRoom.on('error', (error: Error) => reject(error))
+      })
+    })
+  }
+
+  private setupPeerEventHandlers(peer: Peer) {
+    peer.on('open', () => {
+      this.id = this.peer ? this.peer.id : ''
+    })
+    peer.on('error', this.error)
+    peer.on('close', () => { return })
+    peer.on('disconnected', () => { return })
+  }
+
+  private setupRoomEventHandlers(room: SFURoom) {
+    if (this.room) {
+        this.room.close()
     }
-    this.call = call
-    this.call.on('stream', this.handleCallStream)
-    call.on('close', this.handleCallClose)
+    room.on('open', this.handleRoomOpen)
+    room.on('peerJoin', this.handleRoomPeerJoin)
+    room.on('peerLeave', this.handleRoomPeerLeave)
+    room.on('stream', this.handleRoomStream)
+    room.on('data', this.handleRoomData)
+    room.on('close', this.handleRoomClose)
+    this.room = room
   }
 
-  private handleCallStream(stream: MediaStream) {
-    // ストリーム受け取りハンドラ
-    this.remoteStream = stream
-    this.isTalking = true
-  }
-
-  private handleCallClose() {
-    // 通話切断ハンドラ
-    this.remoteStream = null
-    this.isTalking = false
-  }
-
-  private handlePeerCall(call: MediaConnection) {
-    // 着信ハンドラ
-    if (!this.localStream) {
-      return
+  private async handleRoomOpen() {
+    this.log('=== You joined ===')
+    try {
+        await this.dummyRoomJoin()
+    } catch (err){
+        this.error(err)
     }
-    call.answer(this.localStream)
-    this.setupCallEventHandlers(call)
+  }
+  private handleRoomPeerJoin(peerId: string) {
+    this.log(`=== ${peerId} joined ===`)
+  }
+  private handleRoomPeerLeave(peerId: string) {
+//     const idx = this.remoteStreams.findIndex(s => s.peerId === peerId)
+//     this.remoteStreams.splice(idx, 1)
+    this.log(`=== ${peerId} left ===`)
+  }
+  private async handleRoomStream(stream: MediaStreamWithPeerId) {
+    this.remoteStreams.push(stream)
+    this.log(`${stream.peerId}: stream set`)
+  }
+  private handleRoomData(data: DataObject) {
+    this.log(`${data.src}: ${data.data}`)
+  }
+  private handleRoomClose() {
+    this.remoteStreams = []
+    this.log(`=== you left ===`)
   }
 }
 </script>
@@ -112,6 +180,8 @@ export default class HelloWorld extends Vue {
 <style scoped lang="scss">
 .video-container {
   width: 100%;
+  margin: 0 auto;
+  max-width: 600px;
   padding: 1rem;
   display: flex;
   flex-direction: column;
@@ -121,11 +191,5 @@ export default class HelloWorld extends Vue {
     background-color: lightgray;
     max-width: 100%;
   }
-}
-.video-main {
-  width: 80%;
-}
-.video-sub {
-  width: 30%;
 }
 </style>

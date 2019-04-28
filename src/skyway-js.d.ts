@@ -115,6 +115,10 @@ interface DataObject {
     data: any;
 }
 
+interface MediaStreamWithPeerId extends MediaStream {
+  peerId: string
+}
+
 declare class MeshRoom {
     public close(): undefined;
     public getLog(): undefined;
@@ -127,16 +131,20 @@ declare class MeshRoom {
     public on(event: 'peerLeave', cb: (peerId: string) => void): void;
     public on(event: 'log', cb: (logs: string[]) => void): void;
     public once(event: 'log', cb: (logs: string[]) => void): void;
-    public on(event: 'stream', cb: (stream: MediaStream) => void): void;
+    public on(event: 'stream', cb: (stream: MediaStreamWithPeerId) => void): void;
     public on(event: 'data', cb: (object: DataObject) => void): void;
     public on(event: 'close', cb: () => void): void;
-    public on(event: 'removeStream', cb: (stream: MediaStream) => void): void;
+    public on(event: 'removeStream', cb: (stream: MediaStreamWithPeerId) => void): void;
 }
 
 declare class SFURoom {
+    public name: string;
+    public remoteStreams: Record<string, MediaStreamWithPeerId>;
+    public members: string[];
+
     public close(): undefined;
     public getLog(): undefined;
-    public replaceStream(stream: MediaSource): undefined;
+    public replaceStream(stream: MediaStream): undefined;
     public send(data: any): undefined;
 
     public on(event: string, cb: () => void): void;
@@ -145,8 +153,8 @@ declare class SFURoom {
     public on(event: 'peerLeave', cb: (peerId: string) => void): void;
     public on(event: 'log', cb: (logs: string[]) => void): void;
     public once(event: 'log', cb: (logs: string[]) => void): void;
-    public on(event: 'stream', cb: (stream: MediaStream) => void): void;
+    public on(event: 'stream', cb: (stream: MediaStreamWithPeerId) => void): void;
     public on(event: 'data', cb: (object: DataObject) => void): void;
     public on(event: 'close', cb: () => void): void;
-    public on(event: 'removeStream', cb: (stream: MediaStream) => void): void;
+    public on(event: 'removeStream', cb: (stream: MediaStreamWithPeerId) => void): void;
 }
