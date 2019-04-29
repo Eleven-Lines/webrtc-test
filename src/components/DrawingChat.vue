@@ -73,7 +73,7 @@ export default class DrawingChat extends Vue {
   private activeLayer = 'layer 0'
   private toolType: 'pencil' | 'eraser' = 'pencil'
   private toolColor = '#333333'
-  private toolWidth = 5
+  private toolWidth = 3
 
   private id = ''
   private roomName = ''
@@ -92,7 +92,7 @@ export default class DrawingChat extends Vue {
     if (val === 'eraser') {
       this.toolWidth = 30
     } else {
-      this.toolWidth = 5
+      this.toolWidth = 3
     }
   }
 
@@ -163,7 +163,7 @@ export default class DrawingChat extends Vue {
 
   private dummyRoomJoin() {
     return new Promise((resolve, reject) => {
-      const dummyPeer = new Peer(this.id + '_dummy', { key: process.env.VUE_APP_SKYWAY_API_KEY })
+      const dummyPeer = new Peer({ key: process.env.VUE_APP_SKYWAY_API_KEY })
       dummyPeer.on('open', () => {
         const dummyRoom = dummyPeer.joinRoom(this.roomName, { mode: 'sfu' })
         dummyRoom.on('open', () => dummyRoom.close())
@@ -181,14 +181,10 @@ export default class DrawingChat extends Vue {
     if (!this.room) {
       return
     }
-    if (this.room.members.length === 1) {
-      this.isMasterPeer = true
-    } else {
-      this.sendData({
-        type: 'request',
-        payload: null,
-      })
-    }
+    this.sendData({
+      type: 'request',
+      payload: null,
+    })
     try {
       await this.dummyRoomJoin()
     } catch (err) {
@@ -226,9 +222,6 @@ export default class DrawingChat extends Vue {
 
   // handler for recieved data
   private handleRequest() {
-    if (!this.isMasterPeer) {
-      return
-    }
     // send all canvases as data url
     const canvasesData = (this.$refs.drawing as DrawingContainer).getDrawingCanvasesData()
     this.sendData({
@@ -240,11 +233,10 @@ export default class DrawingChat extends Vue {
     })
   }
   private handleCanvas(payload: CanvasPayload) {
-    console.log('canvas data recieved:', payload)
+    (this.$refs.drawing as DrawingContainer).setDrawingCanvasesData(payload.data)
   }
   private handleDrawing(payload: DrawingPayload) {
     (this.$refs.drawing as DrawingContainer).pushDrawingToLayer(payload)
-    console.log('drawing data recieved:', payload)
   }
 }
 </script>

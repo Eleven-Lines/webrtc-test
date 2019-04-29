@@ -105,6 +105,30 @@ export default class DrawingContainer extends Vue {
     })
     return canvasDataMap
   }
+  public pushDrawingToLayer(payload: DrawingPayload) {
+    const activeLayerState = this.layerStateMap[payload.layerId]
+    if (!activeLayerState) {
+      return
+    }
+    activeLayerState.drawings.push(payload)
+  }
+  public setDrawingCanvasesData(data: Record<string, string>) {
+    this.layerStates.forEach((s) => {
+      const canvasData = data[s.layerId]
+      const canvasElement = document.querySelector(`canvas[data-layer-id="${s.layerId}"]`) as HTMLCanvasElement
+      if (!canvasData || !canvasElement) {
+        return 
+      }
+      const ctx = canvasElement.getContext('2d')
+      if (!ctx) {
+        return 
+      }
+      ctx.clearRect(0, 0, this.width, this.height)
+      const image = new Image()
+      image.onload = () => ctx.drawImage(image, 0, 0)
+      image.src = canvasData
+    })
+  }
 
   public handleMousedown(event: MouseEvent) {
     this.isDrawing = true
@@ -142,13 +166,6 @@ export default class DrawingContainer extends Vue {
     }
     this.positionHistory.push([event.layerX, event.layerY])
 
-  }
-  public pushDrawingToLayer(payload: DrawingPayload) {
-    const activeLayerState = this.layerStateMap[payload.layerId]
-    if (!activeLayerState) {
-      return
-    }
-    activeLayerState.drawings.push(payload)
   }
   public handleRenderDone(layerIndex: number) {
     const activeLayerState = this.layerStateMap[this.activeLayer]

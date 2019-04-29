@@ -76,5 +76,6 @@ export default class DrawingCanvas extends Vue {
   position: absolute;
   left: 0;
   top: 0;
+  border: 1px solid lightgray;
 }
 </style>
