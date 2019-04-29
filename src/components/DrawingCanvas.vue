@@ -39,7 +39,7 @@ export default class DrawingCanvas extends Vue {
       return
     }
     this.drawings.forEach((d) => {
-      if (d.positionHistory.length < 2) {
+      if (d.state !== 'drawing' && d.state !== 'end') {
         return
       }
       if (this.ctx.strokeStyle !== d.tool.color) {

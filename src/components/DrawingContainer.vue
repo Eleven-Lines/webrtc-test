@@ -33,6 +33,7 @@ interface DrawingTool {
 }
 
 export interface DrawingPayload {
+  state: 'start' | 'suppressed' | 'drawing' | 'end' 
   tool: DrawingTool
   layerId: string
   position: [number, number]
@@ -131,17 +132,40 @@ export default class DrawingContainer extends Vue {
   }
 
   public handleMousedown(event: MouseEvent) {
+    const payload: DrawingPayload = {
+      tool: this.tool,
+      state: 'start',
+      layerId: this.activeLayer,
+      position: [event.layerX, event.layerY],
+      positionHistory: [],
+      painter: this.defaultPainterId,
+    }
+
+    this.pushDrawingToLayer(payload)
+    this.$emit('draw', payload)
+
     this.isDrawing = true
     this.positionHistory = [[event.layerX, event.layerY]]
   }
 
-  public handleMouseup() {
+  public handleMouseup(event: MouseEvent) {
+    const payload: DrawingPayload = {
+      tool: this.tool,
+      state: 'end',
+      layerId: this.activeLayer,
+      position: [event.layerX, event.layerY],
+      positionHistory: [...this.positionHistory],
+      painter: this.defaultPainterId,
+    }
+
+    this.pushDrawingToLayer(payload)
+    this.$emit('draw', payload)
+
     this.isDrawing = false
     const activeLayerState = this.layerStateMap[this.activeLayer]
     if (!activeLayerState) {
       return
     }
-    activeLayerState.drawings = []
   }
 
   public handleMousemove(event: MouseEvent) {
@@ -151,6 +175,7 @@ export default class DrawingContainer extends Vue {
 
     const payload: DrawingPayload = {
       tool: this.tool,
+      state: this.positionHistory.length < 2 ? 'suppressed' : 'drawing',
       layerId: this.activeLayer,
       position: [event.layerX, event.layerY],
       positionHistory: [...this.positionHistory],
@@ -158,7 +183,6 @@ export default class DrawingContainer extends Vue {
     }
 
     this.pushDrawingToLayer(payload)
-
     this.$emit('draw', payload)
 
     if (this.positionHistory.length >= 2) {

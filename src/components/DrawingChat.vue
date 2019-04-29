@@ -199,13 +199,11 @@ export default class DrawingChat extends Vue {
   }
   private async handleRoomStream(stream: MediaStreamWithPeerId) {
     this.remoteStreams.push(stream)
-    console.log(`${stream.peerId}: stream set`)
   }
   private handleRoomData(data: DataObject) {
     const src = data.src
     const dataType = data.data.type
     const payload = data.data.payload
-    console.log(`${src}: ${dataType}`)
 
     if (dataType === 'request') {
       this.handleRequest()
