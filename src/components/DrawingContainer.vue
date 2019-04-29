@@ -11,10 +11,11 @@
   drawing-canvas(
     v-for="(state, i) in layerStates"
     :key="i"
+    :ref="state.layerId"
     :width="width"
     :height="height"
-    :active="state.active"
     :drawings="state.drawings"
+    :layerId="state.layerId"
     @render-done="handleRenderDone(i)"
   )
 </template>
@@ -33,14 +34,15 @@ interface DrawingTool {
 
 export interface DrawingPayload {
   tool: DrawingTool
-  position: [number, number],
-  positionHistory: [number, number][]
+  layerId: string
+  position: [number, number]
+  positionHistory: Array<[number, number]>
   painter: string
 }
 
 interface LayerState {
-  active: boolean
   drawings: DrawingPayload[],
+  layerId: string
 }
 
 @Component({
@@ -48,7 +50,7 @@ interface LayerState {
     DrawingCanvas,
   },
 })
-export default class Drawing extends Vue {
+export default class DrawingContainer extends Vue {
   @Prop({ type: String, default: 'pencil' })
   private toolType!: ToolType
 
@@ -61,23 +63,24 @@ export default class Drawing extends Vue {
   @Prop({ type: String, default: 'default' })
   private defaultPainterId!: string
 
-  @Prop({ type: Number, default: 0})
-  private activeLayer!: number
+  @Prop({ type: String, default: 'layer 0'})
+  private activeLayer!: string
 
-  private layerStates: LayerState[] = [{
-    active: false,
-    drawings: [],
-  },{
-    active: false,
-    drawings: [],
+  private layerStateMap: Record<string, LayerState> = {
+    'layer 0': { drawings: [], layerId: 'layer 0' },
+    'layer 1': { drawings: [], layerId: 'layer 1' },
   }
-  ]
+  private layerOrder = ['layer 0', 'layer 1']
   private isDrawing = false
-  private width = 960
-  private height = 540
+  private width = 640 * 1.5
+  private height = 360 * 1.5
 
   // previous position for default painter.
-  private positionHistory: [number, number][] = []
+  private positionHistory: Array<[number, number]> = []
+
+  get layerStates(): LayerState[] {
+    return this.layerOrder.map((id) => this.layerStateMap[id])
+  }
 
   get containerStyle() {
     return {
@@ -90,8 +93,17 @@ export default class Drawing extends Vue {
     return {
       toolType: this.toolType,
       color: this.toolColor,
-      width: this.toolWidth
+      width: this.toolWidth,
     }
+  }
+
+  public getDrawingCanvasesData(): Record<string, string> {
+    const canvasDataMap: Record<string, string> = {}
+    this.layerStates.forEach((s) => {
+      const canvasElement = document.querySelector(`canvas[data-layer-id="${s.layerId}"]`) as HTMLCanvasElement
+      this.$set(canvasDataMap, s.layerId, canvasElement.toDataURL())
+    })
+    return canvasDataMap
   }
 
   public handleMousedown(event: MouseEvent) {
@@ -101,29 +113,49 @@ export default class Drawing extends Vue {
 
   public handleMouseup() {
     this.isDrawing = false
-    this.layerStates[this.activeLayer].active = false
-    this.layerStates[this.activeLayer].drawings = []
+    const activeLayerState = this.layerStateMap[this.activeLayer]
+    if (!activeLayerState) {
+      return
+    }
+    activeLayerState.drawings = []
   }
 
   public handleMousemove(event: MouseEvent) {
     if (!this.isDrawing) {
       return
     }
-    this.layerStates[this.activeLayer].active = true
-    this.layerStates[this.activeLayer].drawings.push({
+
+    const payload: DrawingPayload = {
       tool: this.tool,
+      layerId: this.activeLayer,
       position: [event.layerX, event.layerY],
       positionHistory: [...this.positionHistory],
       painter: this.defaultPainterId,
-    })
+    }
+
+    this.pushDrawingToLayer(payload)
+
+    this.$emit('draw', payload)
+
     if (this.positionHistory.length >= 2) {
       this.positionHistory.splice(0, 1)
     }
     this.positionHistory.push([event.layerX, event.layerY])
 
   }
+  public pushDrawingToLayer(payload: DrawingPayload) {
+    const activeLayerState = this.layerStateMap[payload.layerId]
+    if (!activeLayerState) {
+      return
+    }
+    activeLayerState.drawings.push(payload)
+  }
   public handleRenderDone(layerIndex: number) {
-    this.layerStates[this.activeLayer].drawings = []
+    const activeLayerState = this.layerStateMap[this.activeLayer]
+    if (!activeLayerState) {
+      return
+    }
+    activeLayerState.drawings = []
   }
 }
 </script>

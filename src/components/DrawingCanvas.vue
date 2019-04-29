@@ -1,10 +1,10 @@
 <template lang="pug">
-canvas.drawing-canvas(:width="width" :height="height")
+canvas.drawing-canvas(:width="width" :height="height" :data-layer-id="layerId")
 </template>
 
 <script lang="ts">
 import { Component, Prop, Vue } from 'vue-property-decorator'
-import { DrawingPayload } from './Drawing.vue'
+import { DrawingPayload } from './DrawingContainer.vue'
 
 @Component
 export default class DrawingCanvas extends Vue {
@@ -17,8 +17,8 @@ export default class DrawingCanvas extends Vue {
   @Prop({ type: Array, required: true })
   private drawings!: DrawingPayload[]
 
-  @Prop({ type: Boolean, required: true })
-  private active!: boolean
+  @Prop({ type: String, required: true })
+  private layerId!: string
 
   private ctx!: CanvasRenderingContext2D
 
@@ -26,19 +26,19 @@ export default class DrawingCanvas extends Vue {
     this.renderCanvas()
     const ctx = (this.$el as HTMLCanvasElement).getContext('2d')
     if (!ctx) {
-      throw('getContext failed')
+      throw new Error(('getContext failed'))
     }
-    ctx.lineCap = "round"
-    ctx.lineJoin = "round"
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
     this.ctx = ctx
   }
 
   public renderCanvas() {
     requestAnimationFrame(this.renderCanvas)
-    if (!this.active) {
+    if (this.drawings.length === 0) {
       return
     }
-    this.drawings.forEach(d => {
+    this.drawings.forEach((d) => {
       if (d.positionHistory.length < 2) {
         return
       }
@@ -63,6 +63,10 @@ export default class DrawingCanvas extends Vue {
       this.ctx.stroke()
     })
     this.$emit('render-done')
+  }
+
+  public toDataURL() {
+    return (this.$el as HTMLCanvasElement).toDataURL()
   }
 }
 </script>
