@@ -42,6 +42,9 @@ export default class DrawingCanvas extends Vue {
       if (d.state !== 'drawing' && d.state !== 'end') {
         return
       }
+      if (d.positionHistory.length < 2) {
+        return
+      }
       if (this.ctx.strokeStyle !== d.tool.color) {
         this.ctx.strokeStyle = d.tool.color
       }
