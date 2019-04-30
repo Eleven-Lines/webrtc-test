@@ -91,12 +91,11 @@ export default class DrawingContainer extends Vue {
   private innerContainerRect?: DOMRect = undefined
   private innerContainerX = 0
   private innerContainerY = 0
+  private innerContainerScale = 1
 
   private isDragging = false
   private previousTouchX = 0
   private previousTouchY = 0
-
-  private get innerContainerScale() { return Math.min(2, Math.max(0.1, this.viewScale)) }
 
   private positionHistory: Array<[number, number]> = [] // previous position for default painter.
 
@@ -114,7 +113,7 @@ export default class DrawingContainer extends Vue {
     return {
       width: `${this.canvasWidth}px`,
       height: `${this.canvasHeight}px`,
-      transform: `scale(${this.innerContainerScale}) translate(${this.innerContainerX}px, ${this.innerContainerY}px)` 
+      transform: `translate(${this.innerContainerX}px, ${this.innerContainerY}px) scale(${this.innerContainerScale})` 
       // top: `${this.innerContainerY}px`,
       // left: `${this.innerContainerX}px`,
     }
@@ -161,6 +160,15 @@ export default class DrawingContainer extends Vue {
       image.onload = () => ctx.drawImage(image, 0, 0)
       image.src = canvasData
     })
+  }
+
+  public zoomtoLayerPos(position: [number, number], scale: number) {
+    const oldX = this.innerContainerX
+    const oldY = this.innerContainerY
+    const oldScale = this.innerContainerScale
+    this.innerContainerScale = scale
+    this.innerContainerX = (1 - scale / oldScale) * (position[0] - oldX) + oldX
+    this.innerContainerY = (1 - scale / oldScale) * (position[1] - oldY) + oldY
   }
 
   public draw(position: [number, number], state: 'start' | 'drawing' | 'end') {
@@ -262,9 +270,14 @@ export default class DrawingContainer extends Vue {
     activeLayerState.drawings = []
   }
 
+  @Watch('viewScale')
+  public handleScaleChange(s: number) {
+    this.zoomtoLayerPos([this.containerWidth / 2, this.containerHeight / 2], s)
+    this.updateInnerContainerRect()
+  }
+
   @Watch('innerContainerX')
   @Watch('innerContainerY')
-  @Watch('viewScale')
   private updateInnerContainerRect() {
     this.innerContainerRect = (this.$refs.innerContainer as Element).getBoundingClientRect() as DOMRect
   }
