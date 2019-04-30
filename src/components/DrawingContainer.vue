@@ -5,10 +5,11 @@
   @wheel.prevent="handleWheel"
 )
   .drawing-inner-container(
+    ref="innerContainer"
     :style="innerContainerStyle"
-    @touchstart="handleTouchStart"
-    @touchmove="handleTouchMove"
-    @touchend="handleTouchEnd"
+    @touchstart.prevent="handleTouchStart"
+    @touchmove.prevent="handleTouchMove"
+    @touchend.prevent="handleTouchEnd"
     @mousedown="handleMouseDown"
     @mouseup="handleMouseUp"
     @mousemove="handleMouseMove"
@@ -26,7 +27,7 @@
 </template>
 
 <script lang="ts">
-import { Component, Prop, Vue } from 'vue-property-decorator'
+import { Watch, Component, Prop, Vue } from 'vue-property-decorator'
 import DrawingCanvas from '@/components/DrawingCanvas.vue';
 
 export type ToolType = 'pencil' | 'eraser'
@@ -87,12 +88,15 @@ export default class DrawingContainer extends Vue {
   private canvasWidth = 1280 * 2
   private canvasHeight = 720 * 2
 
+  private innerContainerRect?: DOMRect = undefined
   private innerContainerX = 0
   private innerContainerY = 0
 
-  public get innerContainerScale() {
-    return Math.min(2, Math.max(0.1, this.viewScale))
-  }
+  private isDragging = false
+  private previousTouchX = 0
+  private previousTouchY = 0
+
+  private get innerContainerScale() { return Math.min(2, Math.max(0.1, this.viewScale)) }
 
   private positionHistory: Array<[number, number]> = [] // previous position for default painter.
 
@@ -132,6 +136,7 @@ export default class DrawingContainer extends Vue {
     })
     return canvasDataMap
   }
+
   public pushDrawingToLayer(payload: DrawingPayload) {
     const activeLayerState = this.layerStateMap[payload.layerId]
     if (!activeLayerState) {
@@ -139,6 +144,7 @@ export default class DrawingContainer extends Vue {
     }
     activeLayerState.drawings.push(payload)
   }
+
   public setDrawingCanvasesData(data: Record<string, string>) {
     this.layerStates.forEach((s) => {
       const canvasData = data[s.layerId]
@@ -186,19 +192,49 @@ export default class DrawingContainer extends Vue {
     }
   }
 
+  public clientPosToOffsetPos([clientX, clientY]: [number, number]): [number, number] {
+    if (!this.innerContainerRect) return [0, 0]
+    const top = this.innerContainerRect.top
+    const left = this.innerContainerRect.left
+    return [(clientX - left) / this.innerContainerScale, (clientY - top) / this.innerContainerScale]
+  }
+
   public handleTouchStart(event: TouchEvent) {
-    if (event.touches.length >= 2) {
-      event.preventDefault()
+    if (event.touches.length == 2) {
+      this.isDragging = true
+      const [x, y] = [...event.touches]
+        .reduce((acc, cur) => [acc[0] + cur.clientX, acc[1] + cur.clientY], [0, 0])
+        .map(v => v / event.touches.length)
+      this.previousTouchX = x
+      this.previousTouchY = y
+    }
+    if (event.touches.length == 1) {
+      const touch = event.touches[0]
+      this.draw(this.clientPosToOffsetPos([touch.clientX, touch.clientY]), 'start')
     }
   }
   public handleTouchEnd(event: TouchEvent) {
-    if (event.touches.length >= 2) {
-      event.preventDefault()
+    if (event.touches.length == 2) {
+      this.isDragging = false
+    }
+    if (event.touches.length == 1) {
+      const touch = event.touches[0]
+      this.draw(this.clientPosToOffsetPos([touch.clientX, touch.clientY]), 'end')
     }
   }
   public handleTouchMove(event: TouchEvent) {
-    if (event.touches.length >= 2) {
-      event.preventDefault()
+    if (event.touches.length == 2 && this.isDragging) {
+      const [x, y] = [...event.touches]
+        .reduce((acc, cur) => [acc[0] + cur.clientX, acc[1] + cur.clientY], [0, 0])
+        .map(v => v / event.touches.length)
+      this.innerContainerX += x - this.previousTouchX
+      this.innerContainerY += y - this.previousTouchY
+      this.previousTouchX = x
+      this.previousTouchY = y
+    }
+    if (event.touches.length == 1) {
+      const touch = event.touches[0]
+      this.draw(this.clientPosToOffsetPos([touch.clientX, touch.clientY]), 'drawing')
     }
   }
   public handleMouseDown(event: MouseEvent) {
@@ -224,6 +260,17 @@ export default class DrawingContainer extends Vue {
       return
     }
     activeLayerState.drawings = []
+  }
+
+  @Watch('innerContainerX')
+  @Watch('innerContainerY')
+  @Watch('viewScale')
+  private updateInnerContainerRect() {
+    this.innerContainerRect = (this.$refs.innerContainer as Element).getBoundingClientRect() as DOMRect
+  }
+
+  public mounted() {
+    this.updateInnerContainerRect()
   }
 }
 </script>
