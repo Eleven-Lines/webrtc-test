@@ -208,6 +208,7 @@ export default class DrawingContainer extends Vue {
   }
 
   public handleTouchStart(event: TouchEvent) {
+    this.updateInnerContainerRect()
     if (event.touches.length == 2) {
       this.isDragging = true
       const [x, y] = [...event.touches]
@@ -233,7 +234,7 @@ export default class DrawingContainer extends Vue {
   public handleTouchMove(event: TouchEvent) {
     if (event.touches.length == 2 && this.isDragging) {
       const [x, y] = [...event.touches]
-        .reduce((acc, cur) => [acc[0] + cur.clientX, acc[1] + cur.clientY], [0, 0])
+        .reduce((acc, cur) => [acc[0] + cur.pageX, acc[1] + cur.pageY], [0, 0])
         .map(v => v / event.touches.length)
       this.innerContainerX += x - this.previousTouchX
       this.innerContainerY += y - this.previousTouchY
