@@ -6,12 +6,12 @@
 )
   .drawing-inner-container(
     :style="innerContainerStyle"
-    @touchstart.prevent="handleMousedown"
-    @touchmove.prevent="handleMousemove"
-    @touchend.prevent="handleMouseup"
-    @mousedown="handleMousedown"
-    @mouseup="handleMouseup"
-    @mousemove="handleMousemove"
+    @touchstart="handleTouchStart"
+    @touchmove="handleTouchMove"
+    @touchend="handleTouchEnd"
+    @mousedown="handleMouseDown"
+    @mouseup="handleMouseUp"
+    @mousemove="handleMouseMove"
   )
     drawing-canvas(
       v-for="(state, i) in layerStates"
@@ -157,64 +157,61 @@ export default class DrawingContainer extends Vue {
     })
   }
 
-  public handleMousedown(event: MouseEvent) {
-    console.log(event.target)
+  public draw(position: [number, number], state: 'start' | 'drawing' | 'end') {
+    const _state = state === 'drawing' && this.positionHistory.length < 2 ? 'suppressed' : state
+    const positionHistory = state === 'start' ? [] : [...this.positionHistory]
     const payload: DrawingPayload = {
       tool: this.tool,
-      state: 'start',
+      state: _state,
       layerId: this.activeLayer,
-      position: [event.offsetX, event.offsetY],
-      positionHistory: [],
+      position,
+      positionHistory,
       painter: this.defaultPainterId,
     }
-
     this.pushDrawingToLayer(payload)
     this.$emit('draw', payload)
 
-    this.isDrawing = true
-    this.positionHistory = [[event.offsetX, event.offsetY]]
-  }
-  public handleMouseup(event: MouseEvent) {
-    const payload: DrawingPayload = {
-      tool: this.tool,
-      state: 'end',
-      layerId: this.activeLayer,
-      position: [event.offsetX, event.offsetY],
-      positionHistory: [...this.positionHistory],
-      painter: this.defaultPainterId,
+    if (state === 'start') {
+      this.isDrawing = true
+      this.positionHistory = [position]
     }
-
-    this.pushDrawingToLayer(payload)
-    this.$emit('draw', payload)
-
-    this.isDrawing = false
-    const activeLayerState = this.layerStateMap[this.activeLayer]
-    if (!activeLayerState) {
-      return
+    if (state === 'drawing') {
+      if (this.positionHistory.length >= 2) {
+        this.positionHistory.splice(0, 1)
+      }
+      this.positionHistory.push(position)
+    }
+    if (state === 'end') {
+      this.isDrawing = false
     }
   }
-  public handleMousemove(event: MouseEvent) {
+
+  public handleTouchStart(event: TouchEvent) {
+    if (event.touches.length >= 2) {
+      event.preventDefault()
+    }
+  }
+  public handleTouchEnd(event: TouchEvent) {
+    if (event.touches.length >= 2) {
+      event.preventDefault()
+    }
+  }
+  public handleTouchMove(event: TouchEvent) {
+    if (event.touches.length >= 2) {
+      event.preventDefault()
+    }
+  }
+  public handleMouseDown(event: MouseEvent) {
+    this.draw([event.offsetX, event.offsetY], 'start')
+  }
+  public handleMouseUp(event: MouseEvent) {
+    this.draw([event.offsetX, event.offsetY], 'end')
+  }
+  public handleMouseMove(event: MouseEvent) {
     if (!this.isDrawing) {
       return
     }
-
-    const payload: DrawingPayload = {
-      tool: this.tool,
-      state: this.positionHistory.length < 2 ? 'suppressed' : 'drawing',
-      layerId: this.activeLayer,
-      position: [event.offsetX, event.offsetY],
-      positionHistory: [...this.positionHistory],
-      painter: this.defaultPainterId,
-    }
-
-    this.pushDrawingToLayer(payload)
-    this.$emit('draw', payload)
-
-    if (this.positionHistory.length >= 2) {
-      this.positionHistory.splice(0, 1)
-    }
-    this.positionHistory.push([event.offsetX, event.offsetY])
-
+    this.draw([event.offsetX, event.offsetY], 'drawing')
   }
   public handleWheel(event: WheelEvent) {
     this.innerContainerX -= event.deltaX
