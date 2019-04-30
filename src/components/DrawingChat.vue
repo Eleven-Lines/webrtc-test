@@ -6,6 +6,7 @@
     :toolColor="toolColor"
     :toolWidth="toolWidth"
     :activeLayer="activeLayer"
+    :viewScale="viewScale"
     @draw="handleDraw"
   )
   .controls
@@ -27,6 +28,8 @@
       select#layer(v-model="activeLayer")
         option(value="layer 0") Layer 0
         option(value="layer 1") Layer 1
+    .control
+      input#scale(type="range" min="0.1" max="2" step="0.05" v-model.number="viewScale")
     .control
       .color-sample(v-for="color in ['royalblue', 'darkorange']" :style="{ backgroundColor: color }" @click="toolColor=color")
   .chat-control
@@ -74,6 +77,7 @@ export default class DrawingChat extends Vue {
   private toolType: 'pencil' | 'eraser' = 'pencil'
   private toolColor = '#333333'
   private toolWidth = 3
+  private viewScale = 1
 
   private id = ''
   private roomName = ''

@@ -1,23 +1,28 @@
 <template lang="pug">
-.drawing(
+// Just a window for canvases
+.drawing-container(
   :style="containerStyle"
-  @touchstart.prevent="handleMousedown"
-  @touchmove.prevent="handleMousemove"
-  @touchend.prevent="handleMouseup"
-  @mousedown="handleMousedown"
-  @mouseup="handleMouseup"
-  @mousemove="handleMousemove"
+  @wheel.prevent="handleWheel"
 )
-  drawing-canvas(
-    v-for="(state, i) in layerStates"
-    :key="i"
-    :ref="state.layerId"
-    :width="width"
-    :height="height"
-    :drawings="state.drawings"
-    :layerId="state.layerId"
-    @render-done="handleRenderDone(i)"
+  .drawing-inner-container(
+    :style="innerContainerStyle"
+    @touchstart.prevent="handleMousedown"
+    @touchmove.prevent="handleMousemove"
+    @touchend.prevent="handleMouseup"
+    @mousedown="handleMousedown"
+    @mouseup="handleMouseup"
+    @mousemove="handleMousemove"
   )
+    drawing-canvas(
+      v-for="(state, i) in layerStates"
+      :key="i"
+      :ref="state.layerId"
+      :width="canvasWidth"
+      :height="canvasHeight"
+      :drawings="state.drawings"
+      :layerId="state.layerId"
+      @render-done="handleRenderDone(i)"
+    )
 </template>
 
 <script lang="ts">
@@ -67,17 +72,29 @@ export default class DrawingContainer extends Vue {
   @Prop({ type: String, default: 'layer 0'})
   private activeLayer!: string
 
+  @Prop({ type: Number, default: 1})
+  private viewScale! : number
+
   private layerStateMap: Record<string, LayerState> = {
     'layer 0': { drawings: [], layerId: 'layer 0' },
     'layer 1': { drawings: [], layerId: 'layer 1' },
   }
   private layerOrder = ['layer 0', 'layer 1']
   private isDrawing = false
-  private width = 640 * 1.5
-  private height = 360 * 1.5
 
-  // previous position for default painter.
-  private positionHistory: Array<[number, number]> = []
+  private containerWidth = 640 * 1.5
+  private containerHeight = 360 * 1.5
+  private canvasWidth = 1280 * 2
+  private canvasHeight = 720 * 2
+
+  private innerContainerX = 0
+  private innerContainerY = 0
+
+  public get innerContainerScale() {
+    return Math.min(2, Math.max(0.1, this.viewScale))
+  }
+
+  private positionHistory: Array<[number, number]> = [] // previous position for default painter.
 
   get layerStates(): LayerState[] {
     return this.layerOrder.map((id) => this.layerStateMap[id])
@@ -85,8 +102,17 @@ export default class DrawingContainer extends Vue {
 
   get containerStyle() {
     return {
-      width: `${this.width}px`,
-      height: `${this.height}px`,
+      width: `${this.containerWidth}px`,
+      height: `${this.containerHeight}px`,
+    }
+  }
+  get innerContainerStyle() {
+    return {
+      width: `${this.canvasWidth}px`,
+      height: `${this.canvasHeight}px`,
+      transform: `scale(${this.innerContainerScale}) translate(${this.innerContainerX}px, ${this.innerContainerY}px)` 
+      // top: `${this.innerContainerY}px`,
+      // left: `${this.innerContainerX}px`,
     }
   }
 
@@ -124,7 +150,7 @@ export default class DrawingContainer extends Vue {
       if (!ctx) {
         return 
       }
-      ctx.clearRect(0, 0, this.width, this.height)
+      ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight)
       const image = new Image()
       image.onload = () => ctx.drawImage(image, 0, 0)
       image.src = canvasData
@@ -132,11 +158,12 @@ export default class DrawingContainer extends Vue {
   }
 
   public handleMousedown(event: MouseEvent) {
+    console.log(event.target)
     const payload: DrawingPayload = {
       tool: this.tool,
       state: 'start',
       layerId: this.activeLayer,
-      position: [event.layerX, event.layerY],
+      position: [event.offsetX, event.offsetY],
       positionHistory: [],
       painter: this.defaultPainterId,
     }
@@ -145,15 +172,14 @@ export default class DrawingContainer extends Vue {
     this.$emit('draw', payload)
 
     this.isDrawing = true
-    this.positionHistory = [[event.layerX, event.layerY]]
+    this.positionHistory = [[event.offsetX, event.offsetY]]
   }
-
   public handleMouseup(event: MouseEvent) {
     const payload: DrawingPayload = {
       tool: this.tool,
       state: 'end',
       layerId: this.activeLayer,
-      position: [event.layerX, event.layerY],
+      position: [event.offsetX, event.offsetY],
       positionHistory: [...this.positionHistory],
       painter: this.defaultPainterId,
     }
@@ -167,7 +193,6 @@ export default class DrawingContainer extends Vue {
       return
     }
   }
-
   public handleMousemove(event: MouseEvent) {
     if (!this.isDrawing) {
       return
@@ -177,7 +202,7 @@ export default class DrawingContainer extends Vue {
       tool: this.tool,
       state: this.positionHistory.length < 2 ? 'suppressed' : 'drawing',
       layerId: this.activeLayer,
-      position: [event.layerX, event.layerY],
+      position: [event.offsetX, event.offsetY],
       positionHistory: [...this.positionHistory],
       painter: this.defaultPainterId,
     }
@@ -188,9 +213,14 @@ export default class DrawingContainer extends Vue {
     if (this.positionHistory.length >= 2) {
       this.positionHistory.splice(0, 1)
     }
-    this.positionHistory.push([event.layerX, event.layerY])
+    this.positionHistory.push([event.offsetX, event.offsetY])
 
   }
+  public handleWheel(event: WheelEvent) {
+    this.innerContainerX -= event.deltaX
+    this.innerContainerY -= event.deltaY
+  }
+
   public handleRenderDone(layerIndex: number) {
     const activeLayerState = this.layerStateMap[this.activeLayer]
     if (!activeLayerState) {
@@ -202,7 +232,15 @@ export default class DrawingContainer extends Vue {
 </script>
 
 <style scoped lang="scss">
-.drawing {
+.drawing-container {
   position: relative;
+  border: 1px solid lightgray;
+  overflow: hidden;
+  background: lightgray;
+}
+.drawing-inner-container {
+  transform-origin: top left;
+  position: relative;
+  background: white;
 }
 </style>
