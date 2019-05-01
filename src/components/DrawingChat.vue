@@ -76,8 +76,11 @@ export default class DrawingChat extends Vue {
   private activeLayer = 'layer 0'
   private toolType: 'pencil' | 'eraser' = 'pencil'
   private toolColor = '#333333'
-  private toolWidth = 3
+  private toolWidth = 10
   private viewScale = 1
+
+  private penSize = 10
+  private eraserSize = 30
 
   private id = ''
   private roomName = ''
@@ -94,9 +97,11 @@ export default class DrawingChat extends Vue {
   @Watch('toolType')
   public onToolTypeChange(val: 'pencil' | 'eraser') {
     if (val === 'eraser') {
-      this.toolWidth = 30
+      this.penSize = this.toolWidth
+      this.toolWidth = this.eraserSize
     } else {
-      this.toolWidth = 3
+      this.eraserSize = this.toolWidth
+      this.toolWidth = this.penSize
     }
   }
 

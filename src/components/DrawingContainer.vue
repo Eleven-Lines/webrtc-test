@@ -10,9 +10,12 @@
     @touchstart.prevent="handleTouchStart"
     @touchmove.prevent="handleTouchMove"
     @touchend.prevent="handleTouchEnd"
+    @pointerup.prevent="handlePointerUp"
+    @pointermove.prevent="handlePointerMove"
+    @pointerdown.prevent="handlePointerDown"
     @mousedown="handleMouseDown"
-    @mouseup="handleMouseUp"
     @mousemove="handleMouseMove"
+    @mouseup="handleMouseUp"
   )
     drawing-canvas(
       v-for="(state, i) in layerStates"
@@ -83,6 +86,8 @@ export default class DrawingContainer extends Vue {
   private layerOrder = ['layer 0', 'layer 1']
   private isDrawing = false
 
+  private toolWidthScale = 1
+
   private containerWidth = 640 * 1.5
   private containerHeight = 360 * 1.5
   private canvasWidth = 1280 * 2
@@ -96,6 +101,7 @@ export default class DrawingContainer extends Vue {
   private isDragging = false
   private previousTouchX = 0
   private previousTouchY = 0
+  private previousTouchDist = 0
 
   private positionHistory: Array<[number, number]> = [] // previous position for default painter.
 
@@ -123,7 +129,7 @@ export default class DrawingContainer extends Vue {
     return {
       toolType: this.toolType,
       color: this.toolColor,
-      width: this.toolWidth,
+      width: this.toolWidth * this.toolWidthScale,
     }
   }
 
@@ -163,6 +169,9 @@ export default class DrawingContainer extends Vue {
   }
 
   public zoomtoLayerPos(position: [number, number], scale: number) {
+    if (scale < 0.1 || scale > 10) {
+      return
+    }
     const oldX = this.innerContainerX
     const oldY = this.innerContainerY
     const oldScale = this.innerContainerScale
@@ -219,6 +228,7 @@ export default class DrawingContainer extends Vue {
     }
     if (event.touches.length == 1) {
       const touch = event.touches[0]
+      this.toolWidthScale = touch.force
       this.draw(this.clientPosToOffsetPos([touch.clientX, touch.clientY]), 'start')
     }
   }
@@ -228,7 +238,9 @@ export default class DrawingContainer extends Vue {
     }
     if (event.touches.length == 1) {
       const touch = event.touches[0]
+      this.toolWidthScale = touch.force
       this.draw(this.clientPosToOffsetPos([touch.clientX, touch.clientY]), 'end')
+      this.toolWidthScale = 1
     }
   }
   public handleTouchMove(event: TouchEvent) {
@@ -236,16 +248,38 @@ export default class DrawingContainer extends Vue {
       const [x, y] = [...event.touches]
         .reduce((acc, cur) => [acc[0] + cur.pageX, acc[1] + cur.pageY], [0, 0])
         .map(v => v / event.touches.length)
+      const dist = Math.sqrt(this.previousTouchX ** 2 + this.previousTouchY ** 2)
+      const scale = dist / this.previousTouchDist
       this.innerContainerX += x - this.previousTouchX
       this.innerContainerY += y - this.previousTouchY
       this.previousTouchX = x
       this.previousTouchY = y
+      this.previousTouchDist = dist
     }
     if (event.touches.length == 1) {
       const touch = event.touches[0]
+      this.toolWidthScale = touch.force
       this.draw(this.clientPosToOffsetPos([touch.clientX, touch.clientY]), 'drawing')
     }
   }
+  j
+  public handlePointerDown(event: PointerEvent) {
+    this.toolWidthScale = event.pressure
+    this.draw([event.offsetX, event.offsetY], 'start')
+  }
+  public handlePointerUp(event: PointerEvent) {
+    this.toolWidthScale = event.pressure
+    this.draw([event.offsetX, event.offsetY], 'end')
+    this.toolWidthScale = 1
+  }
+  public handlePointerMove(event: PointerEvent) {
+    if (!this.isDrawing) {
+      return
+    }
+    this.toolWidthScale = event.pressure
+    this.draw([event.offsetX, event.offsetY], 'drawing')
+  }
+
   public handleMouseDown(event: MouseEvent) {
     this.draw([event.offsetX, event.offsetY], 'start')
   }
@@ -258,9 +292,15 @@ export default class DrawingContainer extends Vue {
     }
     this.draw([event.offsetX, event.offsetY], 'drawing')
   }
+
   public handleWheel(event: WheelEvent) {
-    this.innerContainerX -= event.deltaX
-    this.innerContainerY -= event.deltaY
+    if (event.ctrlKey) {
+      this.zoomtoLayerPos([event.clientX, event.clientY], this.innerContainerScale - event.deltaY / 100)
+    }
+    else {
+      this.innerContainerX -= event.deltaX
+      this.innerContainerY -= event.deltaY
+    }
   }
 
   public handleRenderDone(layerIndex: number) {
