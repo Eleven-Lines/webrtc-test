@@ -61,8 +61,8 @@ export default class DrawingCanvas extends Vue {
       const p = d.position
       const p1 = d.positionHistory[1]
       const p2 = d.positionHistory[0]
-      this.ctx.moveTo((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
-      this.ctx.quadraticCurveTo(p1[0], p1[1], (p1[0] + p[0]) / 2, (p1[1] + p[1]) / 2)
+      this.ctx.moveTo((p1.position[0] + p2.position[0]) / 2, (p1.position[1] + p2.position[1]) / 2)
+      this.ctx.quadraticCurveTo(p1.position[0], p1.position[1], (p1.position[0] + p[0]) / 2, (p1.position[1] + p[1]) / 2)
       this.ctx.stroke()
     })
     this.$emit('render-done')
