@@ -7,6 +7,8 @@
     :toolWidth="toolWidth"
     :activeLayer="activeLayer"
     :viewScale="viewScale"
+    :layerStateMap="layerStateMap"
+    :layerOrder="layerOrder"
     @draw="handleDraw"
   )
   .controls
@@ -26,8 +28,9 @@
     .control
       label(for="layer") レイヤー
       select#layer(v-model="activeLayer")
-        option(value="layer 0") Layer 0
-        option(value="layer 1") Layer 1
+        option(v-for="id in layerOrder") {{ id }}
+      button(@click="addLayer") add
+      button(@click="deleteLayer(activeLayer)") delete
     .control
       input#scale(type="range" min="0.1" max="2" step="0.05" v-model.number="viewScale")
     .control
@@ -43,9 +46,9 @@
 <script lang="ts">
 import { Watch, Component, Prop, Vue } from 'vue-property-decorator'
 import Peer, { SFURoom, MeshRoom } from 'skyway-js'
-import DrawingContainer, { DrawingPayload } from '@/components/DrawingContainer.vue'
+import DrawingContainer, { DrawingPayload, LayerState } from '@/components/DrawingContainer.vue'
 
-type Data = CanvasRequest | CanvasData | DrawingData
+type Data = CanvasRequest | CanvasData | DrawingData | LayerData
 
 interface DrawingData {
   type: 'drawing'
@@ -62,9 +65,34 @@ interface CanvasRequest {
   payload: null
 }
 
+interface LayerData {
+  type: 'layer'
+  payload: LayerPayload
+}
+
+/**
+ * @param data       map of layer id to canvas base64-encoded data.
+ * @param layerOrder current layer order.
+ */
 interface CanvasPayload {
   data: Record<string, string>
   layerOrder: string[]
+}
+
+/**
+ * @param operation  operation to perform.
+ * @param layerOrder layer order after operation.
+ * @param layerId    layerId to operate, for delete / add.
+ */
+interface LayerPayload {
+  operation: 'add' | 'delete' | 'reorder'
+  layerOrder: string[]
+  layerId?: string
+}
+
+const generateRandomString = (validator?: (arg0: string) => boolean): string => {
+  const str = Math.random().toString(36).slice(-8)
+  return !validator || validator(str) ? str : generateRandomString(validator)
 }
 
 @Component({
@@ -93,6 +121,12 @@ export default class DrawingChat extends Vue {
 
   private localStream: MediaStream | null = null
   private remoteStreams: MediaStreamWithPeerId[] = []
+
+  private layerStateMap: Record<string, LayerState> = {
+    'layer 0': { drawings: [], layerId: 'layer 0' },
+    'layer 1': { drawings: [], layerId: 'layer 1' },
+  }
+  private layerOrder = ['layer 0', 'layer 1']
 
   @Watch('toolType')
   public onToolTypeChange(val: 'pencil' | 'eraser') {
@@ -130,7 +164,6 @@ export default class DrawingChat extends Vue {
     this.room = room
     this.joined = true
   }
-
   public leaveRoom() {
     if (!this.room) {
       return
@@ -140,10 +173,19 @@ export default class DrawingChat extends Vue {
   }
 
   public handleDraw(payload: DrawingPayload) {
+    this.pushDrawingToLayer(payload)
     this.sendData({
       type: 'drawing',
       payload,
     })
+  }
+
+  public pushDrawingToLayer(payload: DrawingPayload) {
+    const activeLayerState = this.layerStateMap[payload.layerId]
+    if (!activeLayerState) {
+      return
+    }
+    activeLayerState.drawings.push(payload)
   }
 
   public async mounted() {
@@ -170,19 +212,63 @@ export default class DrawingChat extends Vue {
     this.room.send(data)
   }
 
-  private dummyRoomJoin() {
-    return new Promise((resolve, reject) => {
-      const dummyPeer = new Peer({ key: process.env.VUE_APP_SKYWAY_API_KEY })
-      dummyPeer.on('open', () => {
-        const dummyRoom = dummyPeer.joinRoom(this.roomName, { mode: 'sfu' })
-        dummyRoom.on('open', () => dummyRoom.close())
-        dummyRoom.on('close', () => {
-          dummyPeer.destroy()
-          resolve()
-        })
-        dummyRoom.on('error', (error: Error) => reject(error))
-      })
+  private addLayer() {
+    const layerId = generateRandomString(id => !this.layerStateMap[id])
+    this.$set(this.layerStateMap, layerId, { drawings: [], layerId })
+    this.layerOrder.push(layerId)
+    this.sendData({
+      type: 'layer',
+      payload: {
+        operation: 'add',
+        layerOrder: this.layerOrder,
+        layerId
+      }
     })
+  }
+  private deleteLayer(layerId: string) {
+    if (!this.layerStateMap[layerId]) {
+      throw('invalid layer')
+    }
+    this.$delete(this.layerStateMap, layerId)
+    this.layerOrder.splice(this.layerOrder.findIndex(l => l === layerId), 1)
+    this.sendData({
+      type: 'layer',
+      payload: {
+        operation: 'delete',
+        layerOrder: this.layerOrder,
+        layerId
+      }
+    })
+  }
+
+  // handler for recieved data
+  private handleRecieveRequest() {
+    // send all canvases as data url
+    const canvasesData = (this.$refs.drawing as DrawingContainer).getDrawingCanvasesData()
+    this.sendData({
+      type: 'canvas',
+      payload: {
+        data: canvasesData,
+        layerOrder: [],
+      },
+    })
+  }
+  private handleRecieveCanvas(payload: CanvasPayload) {
+    (this.$refs.drawing as DrawingContainer).setDrawingCanvasesData(payload.data)
+  }
+  private handleRecieveDrawing(payload: DrawingPayload) {
+    this.pushDrawingToLayer(payload)
+  }
+  private handleRecieveLayer(payload: LayerPayload) {
+    if (payload.operation === 'add' && payload.layerId) {
+      this.$set(this.layerStateMap, payload.layerId, { drawings: [], layerId: payload.layerId })
+      this.layerOrder = payload.layerOrder
+    } else if (payload.operation === 'delete' && payload.layerId) {
+      this.$delete(this.layerStateMap, payload.layerId)
+      this.layerOrder = payload.layerOrder
+    } else if (payload.operation === 'reorder') {
+      this.layerOrder = payload.layerOrder
+    }
   }
 
   private async handleRoomOpen() {
@@ -215,35 +301,32 @@ export default class DrawingChat extends Vue {
     const payload = data.data.payload
 
     if (dataType === 'request') {
-      this.handleRequest()
+      this.handleRecieveRequest()
     } else if (dataType === 'canvas') {
-      this.handleCanvas(payload)
+      this.handleRecieveCanvas(payload)
     } else if (dataType === 'drawing') {
-      this.handleDrawing(payload)
+      this.handleRecieveDrawing(payload)
+    } else if (dataType === 'layer') {
+      this.handleRecieveLayer(payload)
     }
   }
   private handleRoomClose() {
     this.remoteStreams = []
     console.log(`=== you left ===`)
   }
-
-  // handler for recieved data
-  private handleRequest() {
-    // send all canvases as data url
-    const canvasesData = (this.$refs.drawing as DrawingContainer).getDrawingCanvasesData()
-    this.sendData({
-      type: 'canvas',
-      payload: {
-        data: canvasesData,
-        layerOrder: [],
-      },
+  private dummyRoomJoin() {
+    return new Promise((resolve, reject) => {
+      const dummyPeer = new Peer({ key: process.env.VUE_APP_SKYWAY_API_KEY })
+      dummyPeer.on('open', () => {
+        const dummyRoom = dummyPeer.joinRoom(this.roomName, { mode: 'sfu' })
+        dummyRoom.on('open', () => dummyRoom.close())
+        dummyRoom.on('close', () => {
+          dummyPeer.destroy()
+          resolve()
+        })
+        dummyRoom.on('error', (error: Error) => reject(error))
+      })
     })
-  }
-  private handleCanvas(payload: CanvasPayload) {
-    (this.$refs.drawing as DrawingContainer).setDrawingCanvasesData(payload.data)
-  }
-  private handleDrawing(payload: DrawingPayload) {
-    (this.$refs.drawing as DrawingContainer).pushDrawingToLayer(payload)
   }
 }
 </script>

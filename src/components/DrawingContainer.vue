@@ -55,7 +55,7 @@ export interface DrawingPayload {
   painter: string
 }
 
-interface LayerState {
+export interface LayerState {
   drawings: DrawingPayload[],
   layerId: string
 }
@@ -84,11 +84,12 @@ export default class DrawingContainer extends Vue {
   @Prop({ type: Number, default: 1})
   private viewScale! : number
 
-  private layerStateMap: Record<string, LayerState> = {
-    'layer 0': { drawings: [], layerId: 'layer 0' },
-    'layer 1': { drawings: [], layerId: 'layer 1' },
-  }
-  private layerOrder = ['layer 0', 'layer 1']
+  @Prop({ type: Object, required: true })
+  private layerStateMap!: Record<string, LayerState>
+
+  @Prop({ type: Array, required: true })
+  private layerOrder!: string[]
+
   private isDrawing = false
   private currentDrawingFrames = 0
 
@@ -148,14 +149,6 @@ export default class DrawingContainer extends Vue {
     return canvasDataMap
   }
 
-  public pushDrawingToLayer(payload: DrawingPayload) {
-    const activeLayerState = this.layerStateMap[payload.layerId]
-    if (!activeLayerState) {
-      return
-    }
-    activeLayerState.drawings.push(payload)
-  }
-
   public setDrawingCanvasesData(data: Record<string, string>) {
     this.layerStates.forEach((s) => {
       const canvasData = data[s.layerId]
@@ -197,7 +190,6 @@ export default class DrawingContainer extends Vue {
       positionHistory,
       painter: this.defaultPainterId,
     }
-    this.pushDrawingToLayer(payload)
     this.$emit('draw', payload)
     this.currentDrawingFrames += 1
 
