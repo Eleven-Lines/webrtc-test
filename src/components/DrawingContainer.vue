@@ -41,12 +41,17 @@ interface DrawingTool {
   width: number
 }
 
+interface PositionHistoryPayload {
+  position: [number, number]
+  width: number
+}
+
 export interface DrawingPayload {
   state: 'start' | 'suppressed' | 'drawing' | 'end' 
   tool: DrawingTool
   layerId: string
   position: [number, number]
-  positionHistory: Array<[number, number]>
+  positionHistory: PositionHistoryPayload[]
   painter: string
 }
 
@@ -85,6 +90,7 @@ export default class DrawingContainer extends Vue {
   }
   private layerOrder = ['layer 0', 'layer 1']
   private isDrawing = false
+  private currentDrawingFrames = 0
 
   private toolWidthScale = 1
 
@@ -103,7 +109,7 @@ export default class DrawingContainer extends Vue {
   private previousTouchY = 0
   private previousTouchDist = 0
 
-  private positionHistory: Array<[number, number]> = [] // previous position for default painter.
+  private positionHistory: PositionHistoryPayload[] = [] // previous position for default painter.
 
   get layerStates(): LayerState[] {
     return this.layerOrder.map((id) => this.layerStateMap[id])
@@ -181,7 +187,7 @@ export default class DrawingContainer extends Vue {
   }
 
   public draw(position: [number, number], state: 'start' | 'drawing' | 'end') {
-    const _state = state === 'drawing' && this.positionHistory.length < 2 ? 'suppressed' : state
+    const _state = state === 'drawing' && this.currentDrawingFrames < 3 ? 'suppressed' : state
     const positionHistory = state === 'start' ? [] : [...this.positionHistory]
     const payload: DrawingPayload = {
       tool: this.tool,
@@ -193,19 +199,27 @@ export default class DrawingContainer extends Vue {
     }
     this.pushDrawingToLayer(payload)
     this.$emit('draw', payload)
+    this.currentDrawingFrames += 1
 
     if (state === 'start') {
       this.isDrawing = true
-      this.positionHistory = [position]
+      this.positionHistory = [{
+        position,
+        width: this.toolWidth
+      }]
     }
     if (state === 'drawing') {
       if (this.positionHistory.length >= 2) {
         this.positionHistory.splice(0, 1)
       }
-      this.positionHistory.push(position)
+      this.positionHistory.push({
+        position,
+        width: this.toolWidth * this.toolWidthScale
+      })
     }
     if (state === 'end') {
       this.isDrawing = false
+      this.currentDrawingFrames = 0
     }
   }
 
@@ -219,6 +233,9 @@ export default class DrawingContainer extends Vue {
   public handleTouchStart(event: TouchEvent) {
     this.updateInnerContainerRect()
     if (event.touches.length == 2) {
+      if (this.isDrawing) {
+        return
+      }
       this.isDragging = true
       const [x, y] = [...event.touches]
         .reduce((acc, cur) => [acc[0] + cur.clientX, acc[1] + cur.clientY], [0, 0])
@@ -233,11 +250,12 @@ export default class DrawingContainer extends Vue {
     }
   }
   public handleTouchEnd(event: TouchEvent) {
-    if (event.touches.length == 2) {
+    if (event.changedTouches.length == 2) {
       this.isDragging = false
     }
-    if (event.touches.length == 1) {
-      const touch = event.touches[0]
+    if (event.changedTouches.length == 1) {
+      console.log(event)
+      const touch = event.changedTouches[0]
       this.toolWidthScale = touch.force
       this.draw(this.clientPosToOffsetPos([touch.clientX, touch.clientY]), 'end')
       this.toolWidthScale = 1
@@ -262,7 +280,6 @@ export default class DrawingContainer extends Vue {
       this.draw(this.clientPosToOffsetPos([touch.clientX, touch.clientY]), 'drawing')
     }
   }
-  j
   public handlePointerDown(event: PointerEvent) {
     this.toolWidthScale = event.pressure
     this.draw([event.offsetX, event.offsetY], 'start')
@@ -294,6 +311,9 @@ export default class DrawingContainer extends Vue {
   }
 
   public handleWheel(event: WheelEvent) {
+    if (this.isDrawing) {
+      return
+    }
     if (event.ctrlKey) {
       this.zoomtoLayerPos([event.clientX, event.clientY], this.innerContainerScale - event.deltaY / 100)
     }
