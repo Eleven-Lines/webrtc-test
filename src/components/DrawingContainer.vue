@@ -4,6 +4,16 @@
   :style="containerStyle"
   @wheel.prevent="handleWheel"
 )
+  drawing-tool-canvas(
+    :width="containerWidth"
+    :height="containerHeight"
+    :position="position"
+    :toolWidth="toolWidth * toolWidthScale"
+    :usernamePositionMap="usernamePositionMap"
+    :topleft="innerPosContainerTopLeft"
+    :bottomright="innerPosContainerBottomRight"
+    :scale="innerContainerScale"
+  )
   .drawing-inner-container(
     ref="innerContainer"
     :style="innerContainerStyle"
@@ -32,6 +42,7 @@
 <script lang="ts">
 import { Watch, Component, Prop, Vue } from 'vue-property-decorator'
 import DrawingCanvas from '@/components/DrawingCanvas.vue';
+import DrawingToolCanvas from '@/components/DrawingToolCanvas.vue';
 
 export type ToolType = 'pencil' | 'eraser'
 
@@ -39,6 +50,7 @@ interface DrawingTool {
   toolType: ToolType
   color: string
   width: number
+  withPressure: boolean
 }
 
 interface PositionHistoryPayload {
@@ -63,6 +75,7 @@ export interface LayerState {
 @Component({
   components: {
     DrawingCanvas,
+    DrawingToolCanvas,
   },
 })
 export default class DrawingContainer extends Vue {
@@ -90,8 +103,13 @@ export default class DrawingContainer extends Vue {
   @Prop({ type: Array, required: true })
   private layerOrder!: string[]
 
+  @Prop({ type: Object, required: true })
+  private usernamePositionMap!: Record<string, [number, number]>
+
   private isDrawing = false
   private currentDrawingFrames = 0
+
+  private position: [number, number] | null = null
 
   private toolWidthScale = 1
 
@@ -137,7 +155,21 @@ export default class DrawingContainer extends Vue {
       toolType: this.toolType,
       color: this.toolColor,
       width: this.toolWidth * this.toolWidthScale,
+      withPressure: false
     }
+  }
+
+  get innerPosContainerTopLeft() {
+    return [
+      -this.innerContainerX / this.innerContainerScale,
+      -this.innerContainerY / this.innerContainerScale
+    ]
+  }
+  get innerPosContainerBottomRight() {
+    return [
+      -(this.innerContainerX + this.containerWidth) / this.innerContainerScale,
+      -(this.innerContainerY + this.containerHeight) / this.innerContainerScale
+    ]
   }
 
   public getDrawingCanvasesData(): Record<string, string> {
@@ -190,6 +222,7 @@ export default class DrawingContainer extends Vue {
       positionHistory,
       painter: this.defaultPainterId,
     }
+    this.position = position
     this.$emit('draw', payload)
     this.currentDrawingFrames += 1
 
@@ -267,6 +300,7 @@ export default class DrawingContainer extends Vue {
       this.previousTouchDist = dist
     }
     if (event.touches.length == 1) {
+      this.$emit('cursor-move', this.position)
       const touch = event.touches[0]
       this.toolWidthScale = touch.force
       this.draw(this.clientPosToOffsetPos([touch.clientX, touch.clientY]), 'drawing')
@@ -282,6 +316,8 @@ export default class DrawingContainer extends Vue {
     this.toolWidthScale = 1
   }
   public handlePointerMove(event: PointerEvent) {
+    this.position = [event.offsetX, event.offsetY]
+    this.$emit('cursor-move', this.position)
     if (!this.isDrawing) {
       return
     }
@@ -296,6 +332,8 @@ export default class DrawingContainer extends Vue {
     this.draw([event.offsetX, event.offsetY], 'end')
   }
   public handleMouseMove(event: MouseEvent) {
+    this.position = [event.offsetX, event.offsetY]
+    this.$emit('cursor-move', this.position)
     if (!this.isDrawing) {
       return
     }
@@ -352,5 +390,6 @@ export default class DrawingContainer extends Vue {
   transform-origin: top left;
   position: relative;
   background: white;
+  cursor: none;
 }
 </style>

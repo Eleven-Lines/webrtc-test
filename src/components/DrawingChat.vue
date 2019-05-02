@@ -9,7 +9,9 @@
     :viewScale="viewScale"
     :layerStateMap="layerStateMap"
     :layerOrder="layerOrder"
+    :usernamePositionMap="usernamePositionMap"
     @draw="handleDraw"
+    @cursor-move="handleCursorMove"
   )
   .controls
     .control
@@ -28,7 +30,7 @@
     .control
       label(for="layer") レイヤー
       select#layer(v-model="activeLayer")
-        option(v-for="id in layerOrder") {{ id }}
+        option(v-for="(id, i) in layerOrder" :value="id") レイヤー{{ i }}
       button(@click="addLayer") add
       button(@click="deleteLayer(activeLayer)") delete
     .control
@@ -48,7 +50,7 @@ import { Watch, Component, Prop, Vue } from 'vue-property-decorator'
 import Peer, { SFURoom, MeshRoom } from 'skyway-js'
 import DrawingContainer, { DrawingPayload, LayerState } from '@/components/DrawingContainer.vue'
 
-type Data = CanvasRequest | CanvasData | DrawingData | LayerData
+type Data = CanvasRequest | CanvasData | DrawingData | LayerData | CursorData
 
 interface DrawingData {
   type: 'drawing'
@@ -70,6 +72,11 @@ interface LayerData {
   payload: LayerPayload
 }
 
+interface CursorData {
+  type: 'cursor'
+  payload: CursorPayload
+}
+
 /**
  * @param data       map of layer id to canvas base64-encoded data.
  * @param layerOrder current layer order.
@@ -88,6 +95,11 @@ interface LayerPayload {
   operation: 'add' | 'delete' | 'reorder'
   layerOrder: string[]
   layerId?: string
+}
+
+interface CursorPayload {
+  user: string
+  position: [number, number]
 }
 
 const generateRandomString = (validator?: (arg0: string) => boolean): string => {
@@ -122,11 +134,16 @@ export default class DrawingChat extends Vue {
   private localStream: MediaStream | null = null
   private remoteStreams: MediaStreamWithPeerId[] = []
 
+  private cursorThrottleCounter = 0
+  private cursorThrottleRate = 5
+
   private layerStateMap: Record<string, LayerState> = {
     'layer 0': { drawings: [], layerId: 'layer 0' },
     'layer 1': { drawings: [], layerId: 'layer 1' },
   }
   private layerOrder = ['layer 0', 'layer 1']
+
+  private usernamePositionMap: Record<string, [number, number]> = {}
 
   @Watch('toolType')
   public onToolTypeChange(val: 'pencil' | 'eraser') {
@@ -177,6 +194,20 @@ export default class DrawingChat extends Vue {
     this.sendData({
       type: 'drawing',
       payload,
+    })
+  }
+
+  public handleCursorMove(position: [number, number]) {
+    this.cursorThrottleCounter = (this.cursorThrottleCounter + 1) % this.cursorThrottleRate
+    if (this.cursorThrottleCounter !== 0) {
+      return
+    }
+    this.sendData({
+      type: 'cursor',
+      payload: {
+        user: this.id,
+        position
+      }
     })
   }
 
@@ -249,11 +280,15 @@ export default class DrawingChat extends Vue {
       type: 'canvas',
       payload: {
         data: canvasesData,
-        layerOrder: [],
+        layerOrder: this.layerOrder
       },
     })
   }
   private handleRecieveCanvas(payload: CanvasPayload) {
+    payload.layerOrder.forEach(layerId => {
+      this.$set(this.layerStateMap, layerId, { drawings: [], layerId: layerId })
+    })
+    this.layerOrder = payload.layerOrder;
     (this.$refs.drawing as DrawingContainer).setDrawingCanvasesData(payload.data)
   }
   private handleRecieveDrawing(payload: DrawingPayload) {
@@ -269,6 +304,9 @@ export default class DrawingChat extends Vue {
     } else if (payload.operation === 'reorder') {
       this.layerOrder = payload.layerOrder
     }
+  }
+  private handleRecieveCursor(payload: CursorPayload) {
+    this.$set(this.usernamePositionMap, payload.user, payload.position)
   }
 
   private async handleRoomOpen() {
@@ -308,6 +346,8 @@ export default class DrawingChat extends Vue {
       this.handleRecieveDrawing(payload)
     } else if (dataType === 'layer') {
       this.handleRecieveLayer(payload)
+    } else if (dataType === 'cursor') {
+      this.handleRecieveCursor(payload)
     }
   }
   private handleRoomClose() {

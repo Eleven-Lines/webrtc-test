@@ -65,12 +65,17 @@ export default class DrawingCanvas extends Vue {
       if (d.tool.toolType === 'eraser' && this.ctx.globalCompositeOperation !== 'destination-out') {
         this.ctx.globalCompositeOperation = 'destination-out'
       }
+      if (d.tool.withPressure) {
+        this.drawWithPressure(d)
+      } else {
+        this.drawWithoutPressure(d)
+      }
+    })
+    this.$emit('render-done')
+  }
+
+  private drawWithPressure(d: DrawingPayload) {
       this.ctx.beginPath()
-      // const p = d.position
-      // const p1 = d.positionHistory[1]
-      // const p2 = d.positionHistory[0]
-      // this.ctx.moveTo((p1.position[0] + p2.position[0]) / 2, (p1.position[1] + p2.position[1]) / 2)
-      // this.ctx.quadraticCurveTo(p1.position[0], p1.position[1], (p1.position[0] + p[0]) / 2, (p1.position[1] + p[1]) / 2)
 
       // event points
       const [p1x, p1y] = d.position
@@ -78,9 +83,9 @@ export default class DrawingCanvas extends Vue {
       const [p3x, p3y] = d.positionHistory[0].position
 
       // event points width
-      const w1 = d.tool.width
-      const w2 = d.positionHistory[1].width
-      const w3 = d.positionHistory[0].width
+      const w1 = d.tool.width / 2
+      const w2 = d.positionHistory[1].width / 2
+      const w3 = d.positionHistory[0].width / 2
 
       // control point base
       const [ax, ay] = [(p3x + p2x) / 2, (p3y + p2y) / 2]
@@ -183,42 +188,6 @@ export default class DrawingCanvas extends Vue {
         const [cpx, cpy] = [bpx + up * 1, bpy + up * s1]
         const [cmx, cmy] = [bmx + um * 1, bmy + um * s1]
 
-        if (ay - cpy > 50 && cpy < Math.min(apy, bpy)) {
-          console.log("======")
-          console.log("s1", s1)
-          console.log("s2", s2)
-          console.log("a", ax, ay)
-          console.log("ap", apx, apy)
-          console.log("am", amx, amy)
-          console.log("b", bx, by)
-          console.log("bp", bpx, bpy)
-          console.log("bm", bmx, bmy)
-          console.log("cp", cpx, cpy)
-          console.log("cm", cmx, cmy)
-          const fillPoint = (x: number, y: number, color: string) => {
-            this.ctx.beginPath()
-            this.ctx.fillStyle = color
-            this.ctx.moveTo(x, y)
-            this.ctx.arc(x, y, 3, 0, Math.PI * 2)
-            this.ctx.fill()
-          }
-          fillPoint(p1x, p1y, "blue")
-          fillPoint(p2x, p2y, "deepskyblue")
-          fillPoint(p3x, p3y, "aqua")
-          fillPoint(ax, ay, "lime")
-          fillPoint(apx, apy, "darkcyan")
-          fillPoint(amx, amy, "green")
-          fillPoint(bx, by, "magenta")
-          fillPoint(bpx, bpy, "red")
-          fillPoint(bmx, bmy, "crimson")
-          fillPoint(cpx, cpy, "black")
-          fillPoint(cmx, cmy, "gray")
-
-          this.ctx.fillStyle = "#333"
-          this.ctx.strokeStyle = "#333"
-          this.ctx.beginPath()
-        }
-
         this.ctx.moveTo(apx, apy)
         this.ctx.quadraticCurveTo(cpx, cpy, bpx, bpy)
         this.ctx.lineTo(bmx, bmy)
@@ -228,8 +197,19 @@ export default class DrawingCanvas extends Vue {
       this.ctx.closePath()
       this.ctx.fill()
       this.ctx.stroke()
-    })
-    this.$emit('render-done')
+  }
+
+  private drawWithoutPressure(d: DrawingPayload) {
+    this.ctx.beginPath()
+    this.ctx.lineWidth = d.tool.width
+
+    const p1 = d.position
+    const p2 = d.positionHistory[1].position
+    const p3 = d.positionHistory[0].position
+    this.ctx.moveTo((p2[0] + p3[0]) / 2, (p2[1] + p3[1]) / 2)
+    this.ctx.quadraticCurveTo(p2[0], p2[1], (p2[0] + p1[0]) / 2, (p2[1] + p1[1]) / 2)
+
+    this.ctx.stroke()
   }
 
   public toDataURL() {
