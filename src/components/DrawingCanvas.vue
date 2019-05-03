@@ -74,6 +74,10 @@ export default class DrawingCanvas extends Vue {
     this.$emit('render-done')
   }
 
+  public toDataURL() {
+    return (this.$el as HTMLCanvasElement).toDataURL()
+  }
+
   private drawWithPressure(d: DrawingPayload) {
       this.ctx.beginPath()
 
@@ -91,7 +95,7 @@ export default class DrawingCanvas extends Vue {
       const [ax, ay] = [(p3x + p2x) / 2, (p3y + p2y) / 2]
       const [bx, by] = [(p2x + p1x) / 2, (p2y + p1y) / 2]
 
-      //control point width
+      // control point width
       const wa = (w3 + w2) / 2
       const wb = (w2 + w1) / 2
 
@@ -105,11 +109,10 @@ export default class DrawingCanvas extends Vue {
         this.ctx.lineTo(bx - wb, by)
         this.ctx.lineTo(ax - wa, ay)
         this.ctx.lineTo(ax + wa, ay)
-      }
-      else if (Math.abs(cosFromPoints(p3x, p3y, p2x, p2y, p1x, p1y)) > 0.9995) {
+      } else if (Math.abs(cosFromPoints(p3x, p3y, p2x, p2y, p1x, p1y)) > 0.9995) {
         // normal length
-        const lna = Math.sqrt(s2 **2 + 1)
-        const lnb = Math.sqrt(s1 **2 + 1)
+        const lna = Math.sqrt(s2 ** 2 + 1)
+        const lnb = Math.sqrt(s1 ** 2 + 1)
 
         const [apx, apy] = [ax + wa * s2 / lna, ay - 1 / lna]
         const [amx, amy] = [ax - wa * s2 / lna, ay + 1 / lna]
@@ -121,10 +124,9 @@ export default class DrawingCanvas extends Vue {
         this.ctx.lineTo(bmx, bmy)
         this.ctx.lineTo(amx, amy)
         this.ctx.lineTo(apx, apy)
-      }
-      else if (!isFinite(s1)) {
+      } else if (!isFinite(s1)) {
         // calculate coordinate for a, like above
-        const lna = Math.sqrt(s2 **2 + 1)
+        const lna = Math.sqrt(s2 ** 2 + 1)
         const [apx, apy] = [ax + wa * s2 / lna, ay - 1 / lna]
         const [amx, amy] = [ax - wa * s2 / lna, ay + 1 / lna]
 
@@ -142,10 +144,9 @@ export default class DrawingCanvas extends Vue {
         this.ctx.lineTo(bmx, bmy)
         this.ctx.quadraticCurveTo(cmx, cmy, amx, amy)
         this.ctx.lineTo(apx, apy)
-      }
-      else if (!isFinite(s2)) {
+      } else if (!isFinite(s2)) {
         // calculate coordinate for b, like above
-        const lnb = Math.sqrt(s1 **2 + 1)
+        const lnb = Math.sqrt(s1 ** 2 + 1)
         const [bpx, bpy] = [bx + wb * s1 / lnb, by - 1 / lnb]
         const [bmx, bmy] = [bx - wb * s1 / lnb, by + 1 / lnb]
 
@@ -163,11 +164,10 @@ export default class DrawingCanvas extends Vue {
         this.ctx.lineTo(bmx, bmy)
         this.ctx.quadraticCurveTo(cmx, cmy, amx, amy)
         this.ctx.lineTo(apx, apy)
-      }
-      else {
+      } else {
         // normal length
-        const lna = Math.sqrt(s2 **2 + 1)
-        const lnb = Math.sqrt(s1 **2 + 1)
+        const lna = Math.sqrt(s2 ** 2 + 1)
+        const lnb = Math.sqrt(s1 ** 2 + 1)
 
         // anchor points
         const [apx, apy] = [ax + wa * s2 / lna, ay - 1 / lna]
@@ -210,10 +210,6 @@ export default class DrawingCanvas extends Vue {
     this.ctx.quadraticCurveTo(p2[0], p2[1], (p2[0] + p1[0]) / 2, (p2[1] + p1[1]) / 2)
 
     this.ctx.stroke()
-  }
-
-  public toDataURL() {
-    return (this.$el as HTMLCanvasElement).toDataURL()
   }
 }
 </script>

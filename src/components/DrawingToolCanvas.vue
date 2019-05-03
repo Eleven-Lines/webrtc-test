@@ -9,7 +9,7 @@
 
 <script lang="ts">
 import { Component, Prop, Vue } from 'vue-property-decorator'
-import { DrawingPayload } from './DrawingContainer.vue'
+import { DrawingPayload } from '../lib/interface'
 
 @Component
 export default class DrawingToolCanvas extends Vue {
@@ -37,8 +37,8 @@ export default class DrawingToolCanvas extends Vue {
   @Prop({ type: Number, required: true })
   private scale!: number
 
-  private toolColor = "#aaa"
-  private userColor = "crimson"
+  private toolColor = '#aaa'
+  private userColor = 'crimson'
   private userCircleRadius = 8
 
   get widthInCanvas() {
@@ -48,22 +48,26 @@ export default class DrawingToolCanvas extends Vue {
     return this.bottomright[1] - this.topleft[1]
   }
 
+  get scaledToolWidth() {
+    return this.toolWidth ? this.toolWidth * this.scale : 0
+  }
+
   get toolCanvasStyle() {
     return {
       width: `${this.width}px`,
-      height: `${this.height}px`
+      height: `${this.height}px`,
     }
   }
 
   get myToolStyle() {
     return this.position && this.toolWidth ? {
-      width: this.toolWidth ? `${this.toolWidth}px` : '0',
-      height: this.toolWidth ? `${this.toolWidth}px` : '0',
-      transform: `translate(${(this.topleft[0] - this.position[0]) / this.widthInCanvas * this.width - this.toolWidth * this.scale / 2}px,
-                            ${(this.topleft[1] - this.position[1]) / this.heightInCanvas * this.height - this.toolWidth * this.scale / 2}px)`
+      width: `${this.scaledToolWidth}px`,
+      height: `${this.scaledToolWidth}px`,
+      transform: `translate(${(this.topleft[0] - this.position[0]) / this.widthInCanvas * this.width - this.scaledToolWidth / 2}px,
+                            ${(this.topleft[1] - this.position[1]) / this.heightInCanvas * this.height - this.scaledToolWidth / 2}px)`,
     } : {
-      width: this.toolWidth ? this.toolWidth * 10 : 0,
-      height: this.toolWidth ? this.toolWidth * 10 : 0,
+      width: `${this.scaledToolWidth}px`,
+      height: `${this.scaledToolWidth}px`,
     }
   }
 
@@ -74,8 +78,8 @@ export default class DrawingToolCanvas extends Vue {
         name,
         style: {
           transform: `translate(${(this.topleft[0] - position[0]) / this.widthInCanvas * this.width - this.userCircleRadius / 2}px,
-                                ${(this.topleft[1] - position[1]) / this.heightInCanvas * this.height - this.userCircleRadius / 2}px) `
-        }
+                                ${(this.topleft[1] - position[1]) / this.heightInCanvas * this.height - this.userCircleRadius / 2}px) `,
+        },
       }
     })
   }
@@ -84,7 +88,7 @@ export default class DrawingToolCanvas extends Vue {
     return {
       width: `${this.userCircleRadius}px`,
       height: `${this.userCircleRadius}px`,
-      border: `2px solid ${this.userColor}`
+      border: `2px solid ${this.userColor}`,
     }
   }
   get userNameStyle() {
@@ -92,7 +96,7 @@ export default class DrawingToolCanvas extends Vue {
       top: `${this.userCircleRadius}px`,
       left: `${this.userCircleRadius}px`,
       background: `${this.userColor}`,
-      transform: `scale(${this.scale})`
+      transform: `scale(${this.scale})`,
     }
   }
 }

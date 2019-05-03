@@ -41,36 +41,9 @@
 
 <script lang="ts">
 import { Watch, Component, Prop, Vue } from 'vue-property-decorator'
+import { ToolType, DrawingTool, PositionHistoryPayload, DrawingPayload, LayerState  } from '../lib/interface'
 import DrawingCanvas from '@/components/DrawingCanvas.vue';
 import DrawingToolCanvas from '@/components/DrawingToolCanvas.vue';
-
-export type ToolType = 'pencil' | 'eraser'
-
-interface DrawingTool {
-  toolType: ToolType
-  color: string
-  width: number
-  withPressure: boolean
-}
-
-interface PositionHistoryPayload {
-  position: [number, number]
-  width: number
-}
-
-export interface DrawingPayload {
-  state: 'start' | 'suppressed' | 'drawing' | 'end' 
-  tool: DrawingTool
-  layerId: string
-  position: [number, number]
-  positionHistory: PositionHistoryPayload[]
-  painter: string
-}
-
-export interface LayerState {
-  drawings: DrawingPayload[],
-  layerId: string
-}
 
 @Component({
   components: {
@@ -79,6 +52,48 @@ export interface LayerState {
   },
 })
 export default class DrawingContainer extends Vue {
+
+  get layerStates(): LayerState[] {
+    return this.layerOrder.map((id) => this.layerStateMap[id])
+  }
+
+  get containerStyle() {
+    return {
+      width: `${this.containerWidth}px`,
+      height: `${this.containerHeight}px`,
+    }
+  }
+  get innerContainerStyle() {
+    return {
+      width: `${this.canvasWidth}px`,
+      height: `${this.canvasHeight}px`,
+      transform: `translate(${this.innerContainerX}px, ${this.innerContainerY}px) scale(${this.innerContainerScale})`,
+      // top: `${this.innerContainerY}px`,
+      // left: `${this.innerContainerX}px`,
+    }
+  }
+
+  get tool(): DrawingTool {
+    return {
+      toolType: this.toolType,
+      color: this.toolColor,
+      width: this.toolWidth * this.toolWidthScale,
+      withPressure: false,
+    }
+  }
+
+  get innerPosContainerTopLeft() {
+    return [
+      -this.innerContainerX / this.innerContainerScale,
+      -this.innerContainerY / this.innerContainerScale,
+    ]
+  }
+  get innerPosContainerBottomRight() {
+    return [
+      -(this.innerContainerX + this.containerWidth) / this.innerContainerScale,
+      -(this.innerContainerY + this.containerHeight) / this.innerContainerScale,
+    ]
+  }
   @Prop({ type: String, default: 'pencil' })
   private toolType!: ToolType
 
@@ -95,7 +110,7 @@ export default class DrawingContainer extends Vue {
   private activeLayer!: string
 
   @Prop({ type: Number, default: 1})
-  private viewScale! : number
+  private viewScale!: number
 
   @Prop({ type: Object, required: true })
   private layerStateMap!: Record<string, LayerState>
@@ -111,12 +126,16 @@ export default class DrawingContainer extends Vue {
 
   private position: [number, number] | null = null
 
-  private toolWidthScale = 1
+
+  private minPressure = 0.3
+  private maxPressure = 1.0
+  private initialToolWidthScale = 0.75
+  private toolWidthScale = 0.75
 
   private containerWidth = 640 * 1.5
   private containerHeight = 360 * 1.5
-  private canvasWidth = 1280 * 2
-  private canvasHeight = 720 * 2
+  private canvasWidth = 1280 * 4
+  private canvasHeight = 720 * 4
 
   private innerContainerRect?: DOMRect = undefined
   private innerContainerX = 0
@@ -130,46 +149,17 @@ export default class DrawingContainer extends Vue {
 
   private positionHistory: PositionHistoryPayload[] = [] // previous position for default painter.
 
-  get layerStates(): LayerState[] {
-    return this.layerOrder.map((id) => this.layerStateMap[id])
+  public pressureResponse(rawPressure: number) {
+    if (rawPressure < 0) { return this.minPressure }
+    if (rawPressure > 1) { return this.maxPressure }
+    return (this.maxPressure - this.minPressure) * rawPressure + this.minPressure
   }
 
-  get containerStyle() {
-    return {
-      width: `${this.containerWidth}px`,
-      height: `${this.containerHeight}px`,
-    }
+  public setPressure(pressure: number) {
+    this.toolWidthScale = this.pressureResponse(pressure)
   }
-  get innerContainerStyle() {
-    return {
-      width: `${this.canvasWidth}px`,
-      height: `${this.canvasHeight}px`,
-      transform: `translate(${this.innerContainerX}px, ${this.innerContainerY}px) scale(${this.innerContainerScale})` 
-      // top: `${this.innerContainerY}px`,
-      // left: `${this.innerContainerX}px`,
-    }
-  }
-
-  get tool(): DrawingTool {
-    return {
-      toolType: this.toolType,
-      color: this.toolColor,
-      width: this.toolWidth * this.toolWidthScale,
-      withPressure: false
-    }
-  }
-
-  get innerPosContainerTopLeft() {
-    return [
-      -this.innerContainerX / this.innerContainerScale,
-      -this.innerContainerY / this.innerContainerScale
-    ]
-  }
-  get innerPosContainerBottomRight() {
-    return [
-      -(this.innerContainerX + this.containerWidth) / this.innerContainerScale,
-      -(this.innerContainerY + this.containerHeight) / this.innerContainerScale
-    ]
+  public resetPressure() {
+    this.toolWidthScale = this.pressureResponse(this.initialToolWidthScale)
   }
 
   public getDrawingCanvasesData(): Record<string, string> {
@@ -186,11 +176,11 @@ export default class DrawingContainer extends Vue {
       const canvasData = data[s.layerId]
       const canvasElement = document.querySelector(`canvas[data-layer-id="${s.layerId}"]`) as HTMLCanvasElement
       if (!canvasData || !canvasElement) {
-        return 
+        return
       }
       const ctx = canvasElement.getContext('2d')
       if (!ctx) {
-        return 
+        return
       }
       ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight)
       const image = new Image()
@@ -230,7 +220,7 @@ export default class DrawingContainer extends Vue {
       this.isDrawing = true
       this.positionHistory = [{
         position,
-        width: this.toolWidth
+        width: this.toolWidth,
       }]
     }
     if (state === 'drawing') {
@@ -239,7 +229,7 @@ export default class DrawingContainer extends Vue {
       }
       this.positionHistory.push({
         position,
-        width: this.toolWidth * this.toolWidthScale
+        width: this.toolWidth * this.toolWidthScale,
       })
     }
     if (state === 'end') {
@@ -249,7 +239,7 @@ export default class DrawingContainer extends Vue {
   }
 
   public clientPosToOffsetPos([clientX, clientY]: [number, number]): [number, number] {
-    if (!this.innerContainerRect) return [0, 0]
+    if (!this.innerContainerRect) { return [0, 0] }
     const top = this.innerContainerRect.top
     const left = this.innerContainerRect.left
     return [(clientX - left) / this.innerContainerScale, (clientY - top) / this.innerContainerScale]
@@ -264,13 +254,13 @@ export default class DrawingContainer extends Vue {
       this.isDragging = true
       const [x, y] = [...event.touches]
         .reduce((acc, cur) => [acc[0] + cur.clientX, acc[1] + cur.clientY], [0, 0])
-        .map(v => v / event.touches.length)
+        .map((v) => v / event.touches.length)
       this.previousTouchX = x
       this.previousTouchY = y
     }
     if (event.touches.length == 1) {
       const touch = event.touches[0]
-      this.toolWidthScale = touch.force
+      this.setPressure(touch.force)
       this.draw(this.clientPosToOffsetPos([touch.clientX, touch.clientY]), 'start')
     }
   }
@@ -281,16 +271,16 @@ export default class DrawingContainer extends Vue {
     if (event.changedTouches.length == 1) {
       console.log(event)
       const touch = event.changedTouches[0]
-      this.toolWidthScale = touch.force
+      this.setPressure(touch.force)
       this.draw(this.clientPosToOffsetPos([touch.clientX, touch.clientY]), 'end')
-      this.toolWidthScale = 1
+      this.resetPressure()
     }
   }
   public handleTouchMove(event: TouchEvent) {
     if (event.touches.length == 2 && this.isDragging) {
       const [x, y] = [...event.touches]
         .reduce((acc, cur) => [acc[0] + cur.pageX, acc[1] + cur.pageY], [0, 0])
-        .map(v => v / event.touches.length)
+        .map((v) => v / event.touches.length)
       const dist = Math.sqrt(this.previousTouchX ** 2 + this.previousTouchY ** 2)
       const scale = dist / this.previousTouchDist
       this.innerContainerX += x - this.previousTouchX
@@ -302,18 +292,18 @@ export default class DrawingContainer extends Vue {
     if (event.touches.length == 1) {
       this.$emit('cursor-move', this.position)
       const touch = event.touches[0]
-      this.toolWidthScale = touch.force
+      this.setPressure(touch.force)
       this.draw(this.clientPosToOffsetPos([touch.clientX, touch.clientY]), 'drawing')
     }
   }
   public handlePointerDown(event: PointerEvent) {
-    this.toolWidthScale = event.pressure
+    this.setPressure(event.pressure)
     this.draw([event.offsetX, event.offsetY], 'start')
   }
   public handlePointerUp(event: PointerEvent) {
-    this.toolWidthScale = event.pressure
+    this.setPressure(event.pressure)
     this.draw([event.offsetX, event.offsetY], 'end')
-    this.toolWidthScale = 1
+    this.resetPressure()
   }
   public handlePointerMove(event: PointerEvent) {
     this.position = [event.offsetX, event.offsetY]
@@ -321,7 +311,7 @@ export default class DrawingContainer extends Vue {
     if (!this.isDrawing) {
       return
     }
-    this.toolWidthScale = event.pressure
+    this.toolWidthScale = this.pressureResponse(event.pressure)
     this.draw([event.offsetX, event.offsetY], 'drawing')
   }
 
@@ -346,8 +336,8 @@ export default class DrawingContainer extends Vue {
     }
     if (event.ctrlKey) {
       this.zoomtoLayerPos([event.clientX, event.clientY], this.innerContainerScale - event.deltaY / 100)
-    }
-    else {
+      this.$emit('zoom', this.innerContainerScale - event.deltaY / 100)
+    } else {
       this.innerContainerX -= event.deltaX
       this.innerContainerY -= event.deltaY
     }
@@ -367,14 +357,14 @@ export default class DrawingContainer extends Vue {
     this.updateInnerContainerRect()
   }
 
+  public mounted() {
+    this.updateInnerContainerRect()
+  }
+
   @Watch('innerContainerX')
   @Watch('innerContainerY')
   private updateInnerContainerRect() {
     this.innerContainerRect = (this.$refs.innerContainer as Element).getBoundingClientRect() as DOMRect
-  }
-
-  public mounted() {
-    this.updateInnerContainerRect()
   }
 }
 </script>

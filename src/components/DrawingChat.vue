@@ -1,54 +1,43 @@
 <template lang="pug">
 .drawing-chat-container
-  drawing-container(
+  drawing-container.drawing-container(
     ref="drawing"
-    :toolType="toolType"
-    :toolColor="toolColor"
-    :toolWidth="toolWidth"
-    :activeLayer="activeLayer"
-    :viewScale="viewScale"
+    :activeLayer="toolProperties.activeLayer"
+    :toolType="toolProperties.toolType"
+    :toolColor="toolProperties.toolColor"
+    :toolWidth="toolProperties.toolWidth"
+    :viewScale="toolProperties.viewScale"
     :layerStateMap="layerStateMap"
     :layerOrder="layerOrder"
     :usernamePositionMap="usernamePositionMap"
     @draw="handleDraw"
+    @zoom="handleZoom"
     @cursor-move="handleCursorMove"
   )
-  .controls
-    .control
-      input#pencil(type="radio" value="pencil" v-model="toolType")
-      label(for="pencil") ペン
-    .control
-      input#eraser(type="radio" value="eraser" v-model="toolType")
-      label(for="eraser") 消しゴム
-    .control
-      label(for="width") 線幅
-      input#width(v-model.number="toolWidth")
-    .control
-      label(for="color") 色
-      .color-sample(:style="{ backgroundColor: toolColor }")
-      input#color(v-model="toolColor")
-    .control
-      label(for="layer") レイヤー
-      select#layer(v-model="activeLayer")
-        option(v-for="(id, i) in layerOrder" :value="id") レイヤー{{ i }}
-      button(@click="addLayer") add
-      button(@click="deleteLayer(activeLayer)") delete
-    .control
-      input#scale(type="range" min="0.1" max="2" step="0.05" v-model.number="viewScale")
-    .control
-      .color-sample(v-for="color in ['royalblue', 'darkorange']" :style="{ backgroundColor: color }" @click="toolColor=color")
-  .chat-control
-    input(v-model="roomName" :disabled="joined")
-    button.call-button(v-if="joined" @click="leaveRoom") Leave
-    button.call-button(v-else @click="joinRoom") Join
-  .chat-infomation
-    p ID : {{ id }}
+  tool-panel(
+    v-model="toolProperties"
+    :layerOrder="layerOrder"
+    :containerHeight="540"
+    :id="id"
+    :joined="joined"
+    @property-change="handleToolPropertyChange"
+    @layer-change="handleLayerChange"
+    @join-room="joinRoom"
+    @leave-room="leaveRoom"
+  )
 </template>
 
 <script lang="ts">
 import { Watch, Component, Prop, Vue } from 'vue-property-decorator'
 import Peer, { SFURoom, MeshRoom } from 'skyway-js'
-import DrawingContainer, { DrawingPayload, LayerState } from '@/components/DrawingContainer.vue'
+import {
+  ToolProperties,
+  DrawingPayload,
+  LayerState,
+  LayerPayload
+} from '../lib/interface'
+import DrawingContainer from '@/components/DrawingContainer.vue'
+import ToolPanel from '@/components/ToolPanel.vue'
 
 type Data = CanvasRequest | CanvasData | DrawingData | LayerData | CursorData
 
@@ -86,38 +75,26 @@ interface CanvasPayload {
   layerOrder: string[]
 }
 
-/**
- * @param operation  operation to perform.
- * @param layerOrder layer order after operation.
- * @param layerId    layerId to operate, for delete / add.
- */
-interface LayerPayload {
-  operation: 'add' | 'delete' | 'reorder'
-  layerOrder: string[]
-  layerId?: string
-}
-
 interface CursorPayload {
   user: string
   position: [number, number]
 }
 
-const generateRandomString = (validator?: (arg0: string) => boolean): string => {
-  const str = Math.random().toString(36).slice(-8)
-  return !validator || validator(str) ? str : generateRandomString(validator)
-}
-
 @Component({
   components: {
     DrawingContainer,
+    ToolPanel,
   },
 })
 export default class DrawingChat extends Vue {
-  private activeLayer = 'layer 0'
-  private toolType: 'pencil' | 'eraser' = 'pencil'
-  private toolColor = '#333333'
-  private toolWidth = 10
-  private viewScale = 1
+  private toolProperties: ToolProperties = {
+    activeLayer: 'initial_0',
+    toolType: 'pencil',
+    toolColor: '#333333',
+    toolWidth: 10,
+    viewScale: 1,
+    enablePressure: true
+  }
 
   private penSize = 10
   private eraserSize = 30
@@ -138,25 +115,26 @@ export default class DrawingChat extends Vue {
   private cursorThrottleRate = 5
 
   private layerStateMap: Record<string, LayerState> = {
-    'layer 0': { drawings: [], layerId: 'layer 0' },
-    'layer 1': { drawings: [], layerId: 'layer 1' },
+    initial_0: { drawings: [], layerId: 'initial_0' },
+    initial_1: { drawings: [], layerId: 'initial_1' },
   }
-  private layerOrder = ['layer 0', 'layer 1']
+  private layerOrder = ['initial_0', 'initial_1']
 
   private usernamePositionMap: Record<string, [number, number]> = {}
 
   @Watch('toolType')
   public onToolTypeChange(val: 'pencil' | 'eraser') {
     if (val === 'eraser') {
-      this.penSize = this.toolWidth
-      this.toolWidth = this.eraserSize
+      this.penSize = this.toolProperties.toolWidth
+      this.toolProperties.toolWidth = this.eraserSize
     } else {
-      this.eraserSize = this.toolWidth
-      this.toolWidth = this.penSize
+      this.eraserSize = this.toolProperties.toolWidth
+      this.toolProperties.toolWidth = this.penSize
     }
   }
 
-  public joinRoom() {
+  public joinRoom(payload: [string]) {
+    this.roomName = payload[0]
     if (!this.peer || !this.peer.open) {
       return
     }
@@ -189,6 +167,10 @@ export default class DrawingChat extends Vue {
     this.joined = false
   }
 
+  public handleToolPropertyChange(payload: ToolProperties) {
+
+  }
+
   public handleDraw(payload: DrawingPayload) {
     this.pushDrawingToLayer(payload)
     this.sendData({
@@ -196,7 +178,6 @@ export default class DrawingChat extends Vue {
       payload,
     })
   }
-
   public handleCursorMove(position: [number, number]) {
     this.cursorThrottleCounter = (this.cursorThrottleCounter + 1) % this.cursorThrottleRate
     if (this.cursorThrottleCounter !== 0) {
@@ -206,9 +187,15 @@ export default class DrawingChat extends Vue {
       type: 'cursor',
       payload: {
         user: this.id,
-        position
-      }
+        position,
+      },
     })
+  }
+  public handleZoom(scale: number) {
+    this.toolProperties.viewScale = scale
+  }
+  private handleLayerChange(payload: LayerPayload) {
+    this.handleRecieveLayer(payload)
   }
 
   public pushDrawingToLayer(payload: DrawingPayload) {
@@ -243,35 +230,6 @@ export default class DrawingChat extends Vue {
     this.room.send(data)
   }
 
-  private addLayer() {
-    const layerId = generateRandomString(id => !this.layerStateMap[id])
-    this.$set(this.layerStateMap, layerId, { drawings: [], layerId })
-    this.layerOrder.push(layerId)
-    this.sendData({
-      type: 'layer',
-      payload: {
-        operation: 'add',
-        layerOrder: this.layerOrder,
-        layerId
-      }
-    })
-  }
-  private deleteLayer(layerId: string) {
-    if (!this.layerStateMap[layerId]) {
-      throw('invalid layer')
-    }
-    this.$delete(this.layerStateMap, layerId)
-    this.layerOrder.splice(this.layerOrder.findIndex(l => l === layerId), 1)
-    this.sendData({
-      type: 'layer',
-      payload: {
-        operation: 'delete',
-        layerOrder: this.layerOrder,
-        layerId
-      }
-    })
-  }
-
   // handler for recieved data
   private handleRecieveRequest() {
     // send all canvases as data url
@@ -280,13 +238,13 @@ export default class DrawingChat extends Vue {
       type: 'canvas',
       payload: {
         data: canvasesData,
-        layerOrder: this.layerOrder
+        layerOrder: this.layerOrder,
       },
     })
   }
   private handleRecieveCanvas(payload: CanvasPayload) {
-    payload.layerOrder.forEach(layerId => {
-      this.$set(this.layerStateMap, layerId, { drawings: [], layerId: layerId })
+    payload.layerOrder.forEach((layerId) => {
+      this.$set(this.layerStateMap, layerId, { drawings: [], layerId })
     })
     this.layerOrder = payload.layerOrder;
     (this.$refs.drawing as DrawingContainer).setDrawingCanvasesData(payload.data)
@@ -372,18 +330,12 @@ export default class DrawingChat extends Vue {
 </script>
 
 <style scoped lang="scss">
-.video-container {
-  width: 100%;
-  margin: 0 auto;
-  max-width: 600px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  video {
-    margin-top: 1rem;
-    background-color: lightgray;
-    max-width: 100%;
-  }
+.drawing-chat-container {
+  position: relative;
+}
+.drawing-container {
+  position: absolute;
+  top: 0;
+  bottom: 0;
 }
 </style>
