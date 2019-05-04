@@ -37,7 +37,7 @@
           select#layer(
             :value="value.activeLayer"
             @input="changeProperty('activeLayer', $event.target.value)")
-            option(v-for="id in layerOrder" :value="id") {{ id }}
+            option(v-for="id in inversedLayerOrder" :value="id") {{ id }}
           button(@click="addLayer") 
             | +
           button(@click="deleteLayer(activeLayer)")
@@ -140,6 +140,11 @@ export default class ToolPanel extends Vue {
       border: '1px solid white',
       background: 'none'
     }
+  }
+
+  get inversedLayerOrder() {
+    const l = [...this.layerOrder].reverse()
+    return l
   }
 
   private addLayer() {
@@ -251,13 +256,14 @@ input {
   border-radius: 50%;
   flex-shrink: 0;
   box-sizing: border-box;
+  margin: 0 0.125rem;
   &.is-small {
-    width: 0.5rem;
-    height: 0.5rem;
+    width: 0.25rem;
+    height: 0.25rem;
   }
   &.is-large {
-    width: 1.5rem;
-    height: 1.5rem;
+    width: 1rem;
+    height: 1rem;
   }
 }
 
