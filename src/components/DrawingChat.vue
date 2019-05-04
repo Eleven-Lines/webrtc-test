@@ -112,6 +112,8 @@ export default class DrawingChat extends Vue {
   private cursorThrottleCounter = 0
   private cursorThrottleRate = 5
 
+  private hasRecievedCanvas = false
+
   private layerStateMap: Record<string, LayerState> = {
     initial_0: { drawings: [], layerId: 'initial_0' },
     initial_1: { drawings: [], layerId: 'initial_1' },
@@ -242,11 +244,13 @@ export default class DrawingChat extends Vue {
     })
   }
   private handleRecieveCanvas(payload: CanvasPayload) {
+    if (this.hasRecievedCanvas) return
     payload.layerOrder.forEach((layerId) => {
       this.$set(this.layerStateMap, layerId, { drawings: [], layerId })
     })
     this.layerOrder = payload.layerOrder;
     (this.$refs.drawing as DrawingContainer).setDrawingCanvasesData(payload.data)
+    this.hasRecievedCanvas = true
   }
   private handleRecieveDrawing(payload: DrawingPayload) {
     this.pushDrawingToLayer(payload)
@@ -286,6 +290,7 @@ export default class DrawingChat extends Vue {
   }
   private handleRoomPeerLeave(peerId: string) {
     console.log(`=== ${peerId} left ===`)
+    this.$delete(this.usernamePositionMap, peerId)
   }
   private async handleRoomStream(stream: MediaStreamWithPeerId) {
     this.remoteStreams.push(stream)
