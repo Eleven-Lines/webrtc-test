@@ -251,6 +251,7 @@ export default class DrawingContainer extends Vue {
       if (this.isDrawing) {
         return
       }
+      this.isDrawing = false
       this.isDragging = true
       const [x, y] = [...event.touches]
         .reduce((acc, cur) => [acc[0] + cur.clientX, acc[1] + cur.clientY], [0, 0])

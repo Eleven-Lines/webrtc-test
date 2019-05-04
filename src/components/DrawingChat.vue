@@ -96,9 +96,6 @@ export default class DrawingChat extends Vue {
     enablePressure: true
   }
 
-  private penSize = 10
-  private eraserSize = 30
-
   private id = ''
   private roomName = ''
   private joined = false
@@ -121,17 +118,6 @@ export default class DrawingChat extends Vue {
   private layerOrder = ['initial_0', 'initial_1']
 
   private usernamePositionMap: Record<string, [number, number]> = {}
-
-  @Watch('toolType')
-  public onToolTypeChange(val: 'pencil' | 'eraser') {
-    if (val === 'eraser') {
-      this.penSize = this.toolProperties.toolWidth
-      this.toolProperties.toolWidth = this.eraserSize
-    } else {
-      this.eraserSize = this.toolProperties.toolWidth
-      this.toolProperties.toolWidth = this.penSize
-    }
-  }
 
   public joinRoom(payload: [string]) {
     this.roomName = payload[0]

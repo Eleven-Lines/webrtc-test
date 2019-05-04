@@ -3,6 +3,7 @@
   transition(name="slide")
     .tool-panel-main(v-if="isOpened" key="main" :style="toolPanelStyle")
       .tool-panel-close(@click="isOpened = false")
+        .angle-right
       .controls
         .control
           input#pencil(
@@ -10,26 +11,29 @@
             :checked="value.toolType === 'pencil'"
             @input="changeProperty('toolType', 'pencil')")
           label(for="pencil") ペン
-        .control
           input#eraser(
             type="radio"
             :checked="value.toolType === 'eraser'"
             @input="changeProperty('toolType', 'eraser')")
           label(for="eraser") 消しゴム
         .control
-          label(for="width") 線幅
-          input#width(
+          .line-width-circle.is-small(:style="lineWidthCircleStyle")
+          input.width-slider#width-slider(
+            type="range"
+            min="1"
+            max="50"
+            step="1"
+            :value="value.toolWidth"
+            @input="changePropertyAsNumber('toolWidth', $event.target.value)")
+          .line-width-circle.is-large(:style="lineWidthCircleStyle")
+          input.width-input#width-input(
             :value="value.toolWidth"
             @input="changePropertyAsNumber('toolWidth', $event.target.value)")
         .control
-          label(for="color") 色
-          .color-sample(
-            :style="{ backgroundColor: value.toolColor }")
-          input#color(
+          swatches-picker(
             :value="value.toolColor"
-            @input="changeProperty('toolColor', $event.target.value)")
+            @input="handleColorChange")
         .control
-          label(for="layer") レイヤー
           select#layer(
             :value="value.activeLayer"
             @input="changeProperty('activeLayer', $event.target.value)")
@@ -46,11 +50,6 @@
             step="0.05"
             :value="value.viewScale"
             @input="changePropertyAsNumber('viewScale', $event.target.value)")
-        .control
-          .color-sample(
-            v-for="color in ['royalblue', 'darkorange']"
-            :style="{ backgroundColor: color }"
-            @click="changeProperty('toolColor', color)")
       .chat-control
         input(v-model="roomName" :disabled="joined")
         button.call-button(v-if="joined" @click="$emit('leave-room')") Leave
@@ -58,10 +57,13 @@
       .chat-infomation
         p ID : {{ id }}
     .tool-panel-collapsed(v-else @click="isOpened = true" key="expand")
+      .angle-left
 </template>
 
 <script lang="ts">
 import { Watch, Component, Prop, Vue } from 'vue-property-decorator'
+import { Compact, Swatches } from 'vue-color'
+
 import { ToolProperties, LayerPayload } from '../lib/interface'
 
 const generateRandomString = (validator?: (arg0: string) => boolean): string => {
@@ -69,7 +71,12 @@ const generateRandomString = (validator?: (arg0: string) => boolean): string => 
   return !validator || validator(str) ? str : generateRandomString(validator)
 }
 
-@Component
+@Component({
+  components: {
+    'compact-picker': Compact,
+    'swatches-picker': Swatches,
+  }
+})
 export default class ToolPanel extends Vue {
   @Prop({ type: Array, required: true})
   private layerOrder!: string[]
@@ -89,9 +96,22 @@ export default class ToolPanel extends Vue {
   private isOpened = false
   private roomName = ''
 
+  private penSize = 10
+  private eraserSize = 30
+
   public changeProperty<T extends keyof ToolProperties>(prop: T, value: ToolProperties[T]) {
     const newValue =  { ...this.value }
     newValue[prop] = value
+
+    if (prop === 'toolType' && value === 'eraser') {
+      this.penSize = this.value.toolWidth
+      newValue.toolWidth = this.eraserSize
+    }
+    if (prop === 'toolType' && value === 'pencil') {
+      this.eraserSize = this.value.toolWidth
+      newValue.toolWidth = this.penSize
+    }
+
     this.$emit('input', newValue)
   }
 
@@ -101,10 +121,24 @@ export default class ToolPanel extends Vue {
     this.changeProperty(prop, parsed)
   }
 
+  public handleColorChange(payload: any) {
+    this.changeProperty('toolColor', payload.hex)
+  }
+
   get toolPanelStyle() {
     return {
       height: this.isOpened ? `${this.containerHeight}px` : '2rem',
-      width: this.isOpened ? '15rem' : '2rem'
+      width: this.isOpened ? '13rem' : '2rem'
+    }
+  }
+
+  get lineWidthCircleStyle() {
+    return this.value.toolType === 'pencil' ? {
+      background: 'white',
+      border: 'none'
+    } : {
+      border: '1px solid white',
+      background: 'none'
     }
   }
 
@@ -131,7 +165,7 @@ export default class ToolPanel extends Vue {
 
 <style lang="scss" scoped>
 $primary-color: #0d67ea;
-$panel-width: 15rem;
+$panel-width: 13rem;
 $panel-width-collapsed: 2rem;
 
 .tool-panel {
@@ -152,21 +186,36 @@ $panel-width-collapsed: 2rem;
   background: $primary-color;
   color: white;
   font-size: 0.8rem;
+  overflow: scroll;
+  -webkit-overflow-scrolling: touch;
 }
 
 .control {
   margin: 0.5rem 0;
 }
 
+input {
+  background: none;
+  border: 1px solid white;
+  color: white;
+  border-radius: 2px;
+  padding: 0.25rem;
+}
+
 .tool-panel-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: $panel-width-collapsed;
   height: $panel-width-collapsed;
-  background: white;
   margin-left: auto;
 }
 
 .tool-panel-collapsed {
   position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: $panel-width-collapsed;
   height: $panel-width-collapsed;
   background: $primary-color;
@@ -175,6 +224,54 @@ $panel-width-collapsed: 2rem;
 .controls {
   display: flex;
   flex-direction: column;
+}
+
+
+.angle-left {
+  width: .75rem;
+  height: .75rem;
+  border: {
+    left: 2px solid white;
+    top: 2px solid white;
+  }
+  transform: translateX(-2px) rotate(135deg);
+}
+
+.angle-right {
+  width: .75rem;
+  height: .75rem;
+  border: {
+    left: 2px solid white;
+    top: 2px solid white;
+  }
+  transform: translateX(2px) rotate(-45deg);
+}
+
+.line-width-circle {
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  &.is-small {
+    width: 0.5rem;
+    height: 0.5rem;
+  }
+  &.is-large {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+}
+
+.width-input {
+  width: 1.5rem;
+  margin-left: 0.5rem;
+}
+.width-slider {
+  width: 5.5rem;
+}
+
+.vc-swatches {
+  height: 120px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .slide-enter-active {
