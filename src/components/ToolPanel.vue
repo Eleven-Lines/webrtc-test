@@ -97,7 +97,7 @@ export default class ToolPanel extends Vue {
   @Prop({ type: String, required: true})
   private id!: string
 
-  private isOpened = false
+  private isOpened = true
   private roomName = ''
 
   private penSize = 5
