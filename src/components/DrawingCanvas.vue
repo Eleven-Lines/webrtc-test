@@ -4,7 +4,7 @@ canvas.drawing-canvas(:width="width" :height="height" :data-layer-id="layerId")
 
 <script lang="ts">
 import { Component, Prop, Vue } from 'vue-property-decorator'
-import { DrawingPayload } from './DrawingContainer.vue'
+import { DrawingPayload } from '../lib/interface'
 
 const cosFromPoints = (x3: number, y3: number, x2: number, y2: number, x1: number, y1: number) => {
   const dx1 = x1 - x2

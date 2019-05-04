@@ -34,7 +34,7 @@ import {
   ToolProperties,
   DrawingPayload,
   LayerState,
-  LayerPayload
+  LayerPayload,
 } from '../lib/interface'
 import DrawingContainer from '@/components/DrawingContainer.vue'
 import ToolPanel from '@/components/ToolPanel.vue'
@@ -93,7 +93,7 @@ export default class DrawingChat extends Vue {
     toolColor: '#263238',
     toolWidth: 5,
     viewScale: 1,
-    enablePressure: true
+    enablePressure: true,
   }
 
   private id = ''
@@ -180,9 +180,6 @@ export default class DrawingChat extends Vue {
   public handleZoom(scale: number) {
     this.toolProperties.viewScale = scale
   }
-  private handleLayerChange(payload: LayerPayload) {
-    this.handleRecieveLayer(payload)
-  }
 
   public pushDrawingToLayer(payload: DrawingPayload) {
     const activeLayerState = this.layerStateMap[payload.layerId]
@@ -207,6 +204,9 @@ export default class DrawingChat extends Vue {
       peer.on('disconnected', () => { return })
       this.peer = peer
     }
+  }
+  private handleLayerChange(payload: LayerPayload) {
+    this.handleRecieveLayer(payload)
   }
 
   private sendData(data: Data) {

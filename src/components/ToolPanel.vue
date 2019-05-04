@@ -79,7 +79,7 @@ const generateRandomString = (validator?: (arg0: string) => boolean): string => 
   components: {
     'compact-picker': Compact,
     'swatches-picker': Swatches,
-  }
+  },
 })
 export default class ToolPanel extends Vue {
   @Prop({ type: Array, required: true})
@@ -121,7 +121,7 @@ export default class ToolPanel extends Vue {
 
   public changePropertyAsNumber<T extends keyof ToolProperties>(prop: T, value: string) {
     const parsed = Number.parseFloat(value)
-    if (!parsed) return
+    if (!parsed) { return }
     this.changeProperty(prop, parsed)
   }
 
@@ -132,17 +132,17 @@ export default class ToolPanel extends Vue {
   get toolPanelStyle() {
     return {
       height: this.isOpened ? `${this.containerHeight}px` : '2rem',
-      width: this.isOpened ? '13rem' : '2rem'
+      width: this.isOpened ? '13rem' : '2rem',
     }
   }
 
   get lineWidthCircleStyle() {
     return this.value.toolType === 'pencil' ? {
       background: 'white',
-      border: 'none'
+      border: 'none',
     } : {
       border: '1px solid white',
-      background: 'none'
+      background: 'none',
     }
   }
 
@@ -152,7 +152,7 @@ export default class ToolPanel extends Vue {
   }
 
   private addLayer() {
-    const layerId = generateRandomString((id) => !this.layerOrder.find(l => l === id))
+    const layerId = generateRandomString((id) => !this.layerOrder.find((l) => l === id))
     this.$emit('layer-change',  {
       operation: 'add',
       layerOrder: [layerId, ...this.layerOrder],
@@ -160,7 +160,7 @@ export default class ToolPanel extends Vue {
     })
   }
   private deleteLayer(layerId: string) {
-    if (!this.layerOrder.find(l => l === layerId)) {
+    if (!this.layerOrder.find((l) => l === layerId)) {
       throw new Error(('invalid layer'))
     }
     this.$emit('layer-change', {
