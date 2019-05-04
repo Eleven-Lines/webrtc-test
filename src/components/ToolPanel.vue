@@ -17,7 +17,9 @@
             @input="changeProperty('toolType', 'eraser')")
           label(for="eraser") 消しゴム
         .control
-          .line-width-circle.is-small(:style="lineWidthCircleStyle")
+          .line-width-circle.is-small(
+            :style="lineWidthCircleStyle"
+            @click="changePropertyAsNumber('toolWidth', 1)")
           input.width-slider#width-slider(
             type="range"
             min="1"
@@ -25,7 +27,9 @@
             step="1"
             :value="value.toolWidth"
             @input="changePropertyAsNumber('toolWidth', $event.target.value)")
-          .line-width-circle.is-large(:style="lineWidthCircleStyle")
+          .line-width-circle.is-large(
+            :style="lineWidthCircleStyle"
+            @click="changePropertyAsNumber('toolWidth', 100)")
           input.width-input#width-input(
             :value="value.toolWidth"
             @input="changePropertyAsNumber('toolWidth', $event.target.value)")
@@ -96,7 +100,7 @@ export default class ToolPanel extends Vue {
   private isOpened = false
   private roomName = ''
 
-  private penSize = 10
+  private penSize = 5
   private eraserSize = 30
 
   public changeProperty<T extends keyof ToolProperties>(prop: T, value: ToolProperties[T]) {

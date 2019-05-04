@@ -90,8 +90,8 @@ export default class DrawingChat extends Vue {
   private toolProperties: ToolProperties = {
     activeLayer: 'initial_0',
     toolType: 'pencil',
-    toolColor: '#333333',
-    toolWidth: 10,
+    toolColor: '#263238',
+    toolWidth: 5,
     viewScale: 1,
     enablePressure: true
   }

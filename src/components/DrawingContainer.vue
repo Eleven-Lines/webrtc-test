@@ -68,8 +68,6 @@ export default class DrawingContainer extends Vue {
       width: `${this.canvasWidth}px`,
       height: `${this.canvasHeight}px`,
       transform: `translate(${this.innerContainerX}px, ${this.innerContainerY}px) scale(${this.innerContainerScale})`,
-      // top: `${this.innerContainerY}px`,
-      // left: `${this.innerContainerX}px`,
     }
   }
 
@@ -248,9 +246,6 @@ export default class DrawingContainer extends Vue {
   public handleTouchStart(event: TouchEvent) {
     this.updateInnerContainerRect()
     if (event.touches.length == 2) {
-      if (this.isDrawing) {
-        return
-      }
       this.isDrawing = false
       this.isDragging = true
       const [x, y] = [...event.touches]
@@ -268,9 +263,9 @@ export default class DrawingContainer extends Vue {
   public handleTouchEnd(event: TouchEvent) {
     if (event.changedTouches.length == 2) {
       this.isDragging = false
+      this.isDrawing = false
     }
-    if (event.changedTouches.length == 1) {
-      console.log(event)
+    if (event.changedTouches.length == 1 && !this.isDragging) {
       const touch = event.changedTouches[0]
       this.setPressure(touch.force)
       this.draw(this.clientPosToOffsetPos([touch.clientX, touch.clientY]), 'end')
@@ -282,13 +277,10 @@ export default class DrawingContainer extends Vue {
       const [x, y] = [...event.touches]
         .reduce((acc, cur) => [acc[0] + cur.pageX, acc[1] + cur.pageY], [0, 0])
         .map((v) => v / event.touches.length)
-      const dist = Math.sqrt(this.previousTouchX ** 2 + this.previousTouchY ** 2)
-      const scale = dist / this.previousTouchDist
       this.innerContainerX += x - this.previousTouchX
       this.innerContainerY += y - this.previousTouchY
       this.previousTouchX = x
       this.previousTouchY = y
-      this.previousTouchDist = dist
     }
     if (event.touches.length == 1) {
       this.$emit('cursor-move', this.position)
