@@ -153,7 +153,7 @@ export default class ToolPanel extends Vue {
 
   private addLayer() {
     const layerId = generateRandomString((id) => !this.layerOrder.find((l) => l === id))
-    this.$emit('layer-change',  {
+    this.$emit('layer-change', {
       operation: 'add',
       layerOrder: [layerId, ...this.layerOrder],
       layerId,

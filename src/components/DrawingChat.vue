@@ -94,6 +94,7 @@ export default class DrawingChat extends Vue {
     toolWidth: 5,
     viewScale: 1,
     enablePressure: true,
+    enableAlphaPressure: false,
   }
 
   private id = ''
@@ -124,7 +125,10 @@ export default class DrawingChat extends Vue {
     if (!this.peer || !this.peer.open) {
       return
     }
-    const room = this.peer.joinRoom(this.roomName, {
+    const room = this.peer.joinRoom(this.roomName, this.localStream ? {
+      mode: 'sfu',
+      stream: this.localStream,
+    } : {
       mode: 'sfu',
     }) as SFURoom
 
@@ -190,6 +194,11 @@ export default class DrawingChat extends Vue {
   }
 
   public async mounted() {
+    // try {
+    //   this.localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+    // } catch (error) {
+    //   console.error(error)
+    // }
     const peer = new Peer({
       key: process.env.VUE_APP_SKYWAY_API_KEY,
       debug: 0,
@@ -207,6 +216,10 @@ export default class DrawingChat extends Vue {
   }
   private handleLayerChange(payload: LayerPayload) {
     this.handleRecieveLayer(payload)
+    this.sendData({
+      type: 'layer',
+      payload
+    })
   }
 
   private sendData(data: Data) {

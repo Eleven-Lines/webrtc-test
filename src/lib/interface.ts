@@ -10,6 +10,7 @@ export interface ToolProperties {
   toolWidth: number
   viewScale: number
   enablePressure: boolean
+  enableAlphaPressure: boolean
 }
 
 export interface LayerState {
