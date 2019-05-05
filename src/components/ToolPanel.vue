@@ -55,6 +55,11 @@
             :value="value.viewScale"
             @input="changePropertyAsNumber('viewScale', $event.target.value)")
       .chat-control
+        p 名前を変更
+        input(v-model="username")
+        button.call-button(:disabled="username === ''" @click="$emit('change-name', username)") Set
+      .chat-control
+        p 部屋に参加
         input(v-model="roomName" :disabled="joined")
         button.call-button(v-if="joined" @click="$emit('leave-room')") Leave
         button.call-button(v-else @click="$emit('join-room', roomName)") Join
@@ -99,6 +104,7 @@ export default class ToolPanel extends Vue {
 
   private isOpened = true
   private roomName = ''
+  private username = ''
 
   private penSize = 5
   private eraserSize = 30
@@ -233,8 +239,19 @@ input {
 .controls {
   display: flex;
   flex-direction: column;
+  padding: 0.5rem 1rem;
 }
 
+p {
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.chat-control {
+  input {
+    margin-right: 0.25rem;
+  }
+}
 
 .angle-left {
   width: .75rem;

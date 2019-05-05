@@ -9,7 +9,8 @@
     :height="containerHeight"
     :position="position"
     :toolWidth="toolWidth * toolWidthScale"
-    :usernamePositionMap="usernamePositionMap"
+    :userPositionMap="userPositionMap"
+    :userNameMap="userNameMap"
     :topleft="innerPosContainerTopLeft"
     :bottomright="innerPosContainerBottomRight"
     :scale="innerContainerScale"
@@ -119,7 +120,10 @@ export default class DrawingContainer extends Vue {
   private layerOrder!: string[]
 
   @Prop({ type: Object, required: true })
-  private usernamePositionMap!: Record<string, [number, number]>
+  private userPositionMap!: Record<string, [number, number]>
+
+  @Prop({ type: Object, required: true })
+  private userNameMap!: Record<string, [number, number]>
 
   private isDrawing = false
   private currentDrawingFrames = 0

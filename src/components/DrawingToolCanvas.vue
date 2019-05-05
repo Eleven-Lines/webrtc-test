@@ -4,7 +4,7 @@
   .user-cursor(v-for="(data) in userCursorData" :style="data.style")
     .user-cursor-indicator(:style="userCursorIndicatorStyle")
     .user-name(:style="userNameStyle")
-      | {{ data.name }}
+      | {{ userNameMap[data.name] || data.name }}
 </template>
 
 <script lang="ts">
@@ -26,7 +26,10 @@ export default class DrawingToolCanvas extends Vue {
   private toolWidth?: number
 
   @Prop({ type: Object, required: true })
-  private usernamePositionMap!: Record<string, [number, number]>
+  private userPositionMap!: Record<string, [number, number]>
+
+  @Prop({ type: Object, required: true })
+  private userNameMap!: Record<string, [number, number]>
 
   @Prop({ type: Array, required: true })
   private topleft!: [number, number]
@@ -72,7 +75,7 @@ export default class DrawingToolCanvas extends Vue {
   }
 
   get userCursorData() {
-    return Object.entries(this.usernamePositionMap).map((data) => {
+    return Object.entries(this.userPositionMap).map((data) => {
       const [name, position] = data
       return {
         name,
@@ -126,6 +129,7 @@ export default class DrawingToolCanvas extends Vue {
   border-radius: 50%;
 }
 .user-name {
+  width: max-content;
   transform-origin: top left;
   position: absolute;
   padding: 0.25rem 0.5rem;

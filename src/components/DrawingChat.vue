@@ -9,7 +9,8 @@
     :viewScale="toolProperties.viewScale"
     :layerStateMap="layerStateMap"
     :layerOrder="layerOrder"
-    :usernamePositionMap="usernamePositionMap"
+    :userNameMap="userNameMap"
+    :userPositionMap="userPositionMap"
     @draw="handleDraw"
     @zoom="handleZoom"
     @cursor-move="handleCursorMove"
@@ -24,6 +25,7 @@
     @layer-change="handleLayerChange"
     @join-room="joinRoom"
     @leave-room="leaveRoom"
+    @change-name="setAndNotifyUsername"
   )
 </template>
 
@@ -39,7 +41,7 @@ import {
 import DrawingContainer from '@/components/DrawingContainer.vue'
 import ToolPanel from '@/components/ToolPanel.vue'
 
-type Data = CanvasRequest | CanvasData | DrawingData | LayerData | CursorData
+type Data = CanvasRequest | CanvasData | DrawingData | LayerData | CursorData | UserData
 
 interface DrawingData {
   type: 'drawing'
@@ -66,6 +68,11 @@ interface CursorData {
   payload: CursorPayload
 }
 
+interface UserData {
+  type: 'user'
+  payload: UserPayload
+}
+
 /**
  * @param data       map of layer id to canvas base64-encoded data.
  * @param layerOrder current layer order.
@@ -78,6 +85,11 @@ interface CanvasPayload {
 interface CursorPayload {
   user: string
   position: [number, number]
+}
+
+interface UserPayload {
+  user: string
+  name: string
 }
 
 @Component({
@@ -99,6 +111,7 @@ export default class DrawingChat extends Vue {
 
   private id = ''
   private roomName = ''
+  private username = ''
   private joined = false
 
   private isMasterPeer = false
@@ -111,9 +124,12 @@ export default class DrawingChat extends Vue {
 
   private cursorThrottleCounter = 0
   private cursorThrottleRate = 5
+  private lastCursorPosition: [number, number] = [0, 0]
 
   private hasRequestedCanvas = false
   private hasRecievedCanvas = false
+
+  private userNameMap : Record<string, string> = {}
 
   private layerStateMap: Record<string, LayerState> = {
     initial_0: { drawings: [], layerId: 'initial_0' },
@@ -121,7 +137,7 @@ export default class DrawingChat extends Vue {
   }
   private layerOrder = ['initial_0', 'initial_1']
 
-  private usernamePositionMap: Record<string, [number, number]> = {}
+  private userPositionMap: Record<string, [number, number]> = {}
 
   public joinRoom(payload: [string]) {
     this.roomName = payload[0]
@@ -159,6 +175,30 @@ export default class DrawingChat extends Vue {
     this.room.close()
     this.joined = false
   }
+  public setAndNotifyUsername(username?: string) {
+    if (username) {
+      this.username = username
+    }
+    this.sendData({
+      type: 'user',
+      payload: {
+        user: this.id,
+        name: this.username
+      }
+    })
+  }
+  public setAndNotifyCursor(position?: [number, number]) {
+    if (position) {
+      this.lastCursorPosition = position
+    }
+    this.sendData({
+      type: 'cursor',
+      payload: {
+        user: this.id,
+        position: this.lastCursorPosition,
+      },
+    })
+  }
 
   public handleToolPropertyChange(payload: ToolProperties) {
 
@@ -176,13 +216,7 @@ export default class DrawingChat extends Vue {
     if (this.cursorThrottleCounter !== 0) {
       return
     }
-    this.sendData({
-      type: 'cursor',
-      payload: {
-        user: this.id,
-        position,
-      },
-    })
+    this.setAndNotifyCursor(position)
   }
   public handleZoom(scale: number) {
     this.toolProperties.viewScale = scale
@@ -243,6 +277,8 @@ export default class DrawingChat extends Vue {
         layerOrder: this.layerOrder,
       },
     })
+    this.setAndNotifyUsername()
+    this.setAndNotifyCursor()
   }
   private async handleRecieveCanvas(payload: CanvasPayload) {
     payload.layerOrder.forEach((layerId) => {
@@ -268,7 +304,10 @@ export default class DrawingChat extends Vue {
     }
   }
   private handleRecieveCursor(payload: CursorPayload) {
-    this.$set(this.usernamePositionMap, payload.user, payload.position)
+    this.$set(this.userPositionMap, payload.user, payload.position)
+  }
+  private handleRecieveUser(payload: UserPayload) {
+    this.$set(this.userNameMap, payload.user, payload.name)
   }
 
   private async handleRoomOpen() {
@@ -280,6 +319,7 @@ export default class DrawingChat extends Vue {
       type: 'request',
       payload: null,
     })
+    this.setAndNotifyUsername()
     this.hasRequestedCanvas = true
     try {
       await this.dummyRoomJoin()
@@ -292,7 +332,7 @@ export default class DrawingChat extends Vue {
   }
   private handleRoomPeerLeave(peerId: string) {
     console.log(`=== ${peerId} left ===`)
-    this.$delete(this.usernamePositionMap, peerId)
+    this.$delete(this.userPositionMap, peerId)
   }
   private async handleRoomStream(stream: MediaStreamWithPeerId) {
     this.remoteStreams.push(stream)
@@ -312,6 +352,8 @@ export default class DrawingChat extends Vue {
       this.handleRecieveLayer(payload)
     } else if (dataType === 'cursor') {
       this.handleRecieveCursor(payload)
+    } else if (dataType === 'user') {
+      this.handleRecieveUser(payload)
     }
   }
   private handleRoomClose() {
