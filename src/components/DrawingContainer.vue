@@ -21,11 +21,13 @@
     @touchmove.prevent="handleTouchMove"
     @touchend.prevent="handleTouchEnd"
     @pointerup.prevent="handlePointerUp"
+    @pointerleave.prevent="handlePointerUp"
     @pointermove.prevent="handlePointerMove"
     @pointerdown.prevent="handlePointerDown"
     @mousedown="handleMouseDown"
     @mousemove="handleMouseMove"
     @mouseup="handleMouseUp"
+    @mouseleave="handleMouseUp"
   )
     drawing-canvas(
       v-for="(state, i) in layerStates"
@@ -210,9 +212,16 @@ export default class DrawingContainer extends Vue {
       positionHistory,
       painter: this.defaultPainterId,
     }
-    this.position = position
-    this.$emit('draw', payload)
-    this.currentDrawingFrames += 1
+
+    if (state === 'start'
+      || this.isDrawing && state === 'drawing'
+      || this.isDrawing && state === 'end') {
+
+      this.position = position
+      this.$emit('draw', payload)
+      this.currentDrawingFrames += 1
+    }
+
 
     if (state === 'start') {
       this.isDrawing = true
@@ -221,7 +230,7 @@ export default class DrawingContainer extends Vue {
         width: this.toolWidth,
       }]
     }
-    if (state === 'drawing') {
+    if (state === 'drawing' && this.isDrawing) {
       if (this.positionHistory.length >= 2) {
         this.positionHistory.splice(0, 1)
       }
@@ -230,7 +239,7 @@ export default class DrawingContainer extends Vue {
         width: this.toolWidth * this.toolWidthScale,
       })
     }
-    if (state === 'end') {
+    if (state === 'end' && this.isDrawing) {
       this.isDrawing = false
       this.currentDrawingFrames = 0
     }
