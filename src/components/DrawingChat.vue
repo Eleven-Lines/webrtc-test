@@ -112,6 +112,7 @@ export default class DrawingChat extends Vue {
   private cursorThrottleCounter = 0
   private cursorThrottleRate = 5
 
+  private hasRequestedCanvas = false
   private hasRecievedCanvas = false
 
   private layerStateMap: Record<string, LayerState> = {
@@ -243,14 +244,14 @@ export default class DrawingChat extends Vue {
       },
     })
   }
-  private handleRecieveCanvas(payload: CanvasPayload) {
-    if (this.hasRecievedCanvas) return
+  private async handleRecieveCanvas(payload: CanvasPayload) {
     payload.layerOrder.forEach((layerId) => {
       this.$set(this.layerStateMap, layerId, { drawings: [], layerId })
     })
     this.layerOrder = payload.layerOrder;
+    this.hasRecievedCanvas = true;
+    await this.$nextTick;
     (this.$refs.drawing as DrawingContainer).setDrawingCanvasesData(payload.data)
-    this.hasRecievedCanvas = true
   }
   private handleRecieveDrawing(payload: DrawingPayload) {
     this.pushDrawingToLayer(payload)
@@ -279,6 +280,7 @@ export default class DrawingChat extends Vue {
       type: 'request',
       payload: null,
     })
+    this.hasRequestedCanvas = true
     try {
       await this.dummyRoomJoin()
     } catch (err) {
