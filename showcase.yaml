@@ -8,6 +8,4 @@ entrypoint: "yarn serve"
 # which port to proxy via http(80) (default: null)
 http_proxy: 8080
 
-internal: "hard"
-
 https: "hard"
