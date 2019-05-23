@@ -2,22 +2,27 @@
 .hello
   .video-container
     div(v-for="stream in remoteStreams" :key="stream.peerId")
-      p ID: {{ stream.peerId }}
+      // p ID: {{ stream.peerId }}
       video-stream-player(:stream="stream" :data-peer-id="stream.peerId" muted)
     video-stream-player(v-if="localStream" :stream="localStream" small muted)
   .controls
     input(v-model="roomName" :disabled="isTalking")
     button.call-button(v-if="isTalking" @click="leaveRoom") Leave
     button.call-button(v-else @click="joinRoom") Join
-  .chat
-    input(v-model="chatText")
-    button.call-button(@click="sendChat") Send
+  // .chat
+  //   input(v-model="chatText")
+  //   button.call-button(@click="sendChat") Send
   .infomation
     p ID : {{ id }}
     .log
 </template>
 
 <script lang="ts">
+interface Window {
+  loadDisplayMedia: () => void
+}
+declare var window: Window
+
 import { Component, Prop, Vue } from 'vue-property-decorator'
 import Peer from 'skyway-js'
 import { SFURoom, MeshRoom } from 'skyway-js'
@@ -45,12 +50,12 @@ export default class HelloWorld extends Vue {
   private remoteStreams: MediaStreamWithPeerId[] = []
 
   public log(s: string, color = '') {
-    const logArea = document.querySelector('.log')
-    if (!logArea) { return }
-    const newChild = document.createElement('p')
-    newChild.innerText = s
-    newChild.style.color = color
-    logArea.appendChild(newChild)
+    // const logArea = document.querySelector('.log')
+    // if (!logArea) { return }
+    // const newChild = document.createElement('p')
+    // newChild.innerText = s
+    // newChild.style.color = color
+    // logArea.appendChild(newChild)
   }
 
   public error(s: string) {
@@ -58,12 +63,12 @@ export default class HelloWorld extends Vue {
   }
 
   public joinRoom() {
-    if (!this.peer || !this.peer.open || !this.localStream) {
+    if (!this.peer || !this.peer.open) {
       return
     }
     const room = this.peer.joinRoom(this.roomName, {
       mode: 'sfu',
-      stream: this.localStream,
+      stream: this.localStream || undefined,
     }) as SFURoom
     if (!room) {
       return
@@ -90,10 +95,8 @@ export default class HelloWorld extends Vue {
   }
 
   public async mounted() {
-    try {
-      this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-    } catch (error) {
-      return
+    window.loadDisplayMedia = async () => {
+      this.localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
     }
 
     this.peer = new Peer({
@@ -177,7 +180,6 @@ export default class HelloWorld extends Vue {
 .video-container {
   width: 100%;
   margin: 0 auto;
-  max-width: 600px;
   padding: 1rem;
   display: flex;
   flex-direction: column;

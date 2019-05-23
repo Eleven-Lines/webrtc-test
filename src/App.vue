@@ -1,15 +1,18 @@
 <template lang="pug">
 #app
-  drawing-chat
+  // drawing-chat
+  hello-world
 </template>
 
 <script lang="ts">
 import { Watch, Component, Vue } from 'vue-property-decorator';
-import DrawingChat from './components/DrawingChat.vue';
+// import DrawingChat from './components/DrawingChat.vue';
+import HelloWorld from './components/HelloWorld.vue';
 
 @Component({
   components: {
-    DrawingChat,
+    // DrawingChat,
+    HelloWorld,
   },
 })
 export default class App extends Vue {
