@@ -96,7 +96,7 @@ export default class HelloWorld extends Vue {
 
   public async mounted() {
     window.loadDisplayMedia = async () => {
-      this.localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      this.localStream = await (navigator.mediaDevices as any).getDisplayMedia({ video: true, audio: false })
     }
 
     this.peer = new Peer({
