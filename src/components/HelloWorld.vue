@@ -190,4 +190,7 @@ export default class HelloWorld extends Vue {
     max-width: 100%;
   }
 }
+.controls {
+  justify-content: center
+}
 </style>
